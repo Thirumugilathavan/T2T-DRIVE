@@ -48,13 +48,21 @@ class Config:
     OTP_RATE_LIMIT_PER_WINDOW = 3
     OTP_WINDOW_MINUTES = 10
 
-    # Gnani Services Configuration (Provisional / Configurable)
+    # Gnani Services Configuration (Phase 3 & Phase 4)
     GNANI_BASE_URL = os.getenv("GNANI_BASE_URL", "https://api.vachana.ai")
     GNANI_API_KEY = os.getenv("GNANI_API_KEY", "")
     GNANI_PRISMA_ENDPOINT = os.getenv("GNANI_PRISMA_ENDPOINT", "https://api.vachana.ai/stt/v3")
     GNANI_TIMBRE_ENDPOINT = os.getenv("GNANI_TIMBRE_ENDPOINT", "https://api.vachana.ai/api/v1/tts/inference")
     GNANI_EVON_INFERENCE_URL = os.getenv("GNANI_EVON_INFERENCE_URL", "http://localhost:8000/v1/chat/completions")
     GNANI_EVON_MODEL_NAME = os.getenv("GNANI_EVON_MODEL_NAME", "gnani-evon")
+
+    # Voice Pipeline Configuration (Phase 4)
+    VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "mock").lower()
+    GNANI_PRISMA_ENABLED = os.getenv("GNANI_PRISMA_ENABLED", "0") == "1"
+    GNANI_TIMBRE_ENABLED = os.getenv("GNANI_TIMBRE_ENABLED", "0") == "1"
+    VOICE_MAX_UPLOAD_MB = int(os.getenv("VOICE_MAX_UPLOAD_MB", "10"))
+    VOICE_MAX_DURATION_SECONDS = int(os.getenv("VOICE_MAX_DURATION_SECONDS", "60"))
+    VOICE_TEMP_DIRECTORY = os.getenv("VOICE_TEMP_DIRECTORY", "")
 
 
 class DevelopmentConfig(Config):

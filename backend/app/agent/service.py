@@ -209,16 +209,40 @@ class AgentService:
             }
         )
 
+        # Calculate entities for frontend convenience (frontend/js/voice.js)
+        intent = result_state.get("intent")
+        slots = result_state.get("slots", {})
+        active_pending_res = result_state.get("active_pending_action")
+
+        amt_val = 0.0
+        try:
+            if active_pending_res and "proposed_data" in active_pending_res:
+                amt_val = float(active_pending_res["proposed_data"].get("amount", 0))
+            elif "amount" in slots and slots["amount"] is not None:
+                amt_val = float(slots["amount"])
+        except Exception:
+            amt_val = 0.0
+
+        entities = {
+            "income": amt_val if intent == "RECORD_INCOME" else 0,
+            "expense": amt_val if intent == "RECORD_EXPENSE" else 0,
+            "owner_payment": amt_val if intent == "RECORD_OWNER_PAYMENT" else 0,
+            "amount": amt_val,
+            "category": slots.get("category")
+        }
+
         return {
             "session_id": sid,
+            "pending_id": new_pending_id,
+            "entities": entities,
             "message": result_state.get("response_message", ""),
             "voice_text": result_state.get("response_voice_text", ""),
-            "intent": result_state.get("intent"),
+            "intent": intent,
             "confidence": result_state.get("confidence", 1.0),
             "language": result_state.get("language", sess_lang),
-            "slots": result_state.get("slots", {}),
+            "slots": slots,
             "next_step": result_state.get("next_step", "IDLE"),
-            "active_pending_action": result_state.get("active_pending_action"),
+            "active_pending_action": active_pending_res,
             "execution_result": result_state.get("execution_result"),
             "error": result_state.get("error")
         }

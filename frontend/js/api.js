@@ -1,6 +1,6 @@
 /**
  * T2T DRIVE — API CLIENT SERVICE
- * Unified Fetch API client for FastAPI backend with instant fallback to MockAPI.
+ * Unified Fetch API client for Flask backend with instant fallback to MockAPI.
  * Configurable base URL, zero hardcoded secrets.
  */
 
@@ -10,7 +10,7 @@
   // Central Configuration
   window.T2T_CONFIG = {
     MODE: "mock",                      // "mock" | "live"
-    API_BASE: "http://localhost:8000", // FastAPI backend base URL
+    API_BASE: "http://localhost:5000", // Flask backend base URL
     TIMEOUT_MS: 12000,
     ENDPOINTS: {
       transcribe:        "/api/speech/transcribe",
@@ -24,6 +24,18 @@
   };
 
   /**
+   * Helper to retrieve auth headers if token exists
+   */
+  function getAuthHeaders(customHeaders = {}) {
+    const token = localStorage.getItem("t2t_token") || sessionStorage.getItem("t2t_token");
+    const headers = { ...customHeaders };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    return headers;
+  }
+
+  /**
    * Helper for robust JSON HTTP requests with timeout
    */
   async function fetchWithTimeout(url, options = {}) {
@@ -31,8 +43,10 @@
     const timer = setTimeout(() => controller.abort(), window.T2T_CONFIG.TIMEOUT_MS);
 
     try {
+      const mergedHeaders = getAuthHeaders(options.headers || {});
       const response = await fetch(url, {
         ...options,
+        headers: mergedHeaders,
         signal: controller.signal
       });
       clearTimeout(timer);
@@ -41,7 +55,8 @@
         const errorText = await response.text().catch(() => "");
         throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
       }
-      return await response.json();
+      const json = await response.json();
+      return (json && json.data !== undefined) ? json.data : json;
     } catch (err) {
       clearTimeout(timer);
       if (err.name === 'AbortError') {
@@ -68,8 +83,10 @@
     formData.append("lang", lang);
 
     const url = window.T2T_CONFIG.API_BASE + window.T2T_CONFIG.ENDPOINTS.transcribe;
+    const reqHeaders = getAuthHeaders();
     const res = await fetch(url, {
       method: "POST",
+      headers: reqHeaders,
       body: formData
     });
 
@@ -77,7 +94,8 @@
       const text = await res.text().catch(() => "");
       throw new Error(`Speech transcription failed (${res.status}): ${text}`);
     }
-    return await res.json();
+    const json = await res.json();
+    return (json && json.data !== undefined) ? json.data : json;
   }
 
   /**
@@ -206,4 +224,3 @@
   };
 
 })();
-

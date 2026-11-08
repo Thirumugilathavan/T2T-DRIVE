@@ -334,7 +334,10 @@ class MultilingualNLU:
 
         # Check action verbs
         expense_verbs = ["potten", "potan", "selavu", "spent", "kuduthen", "kattinen", "போட்டேன்", "செலவு", "கட்டினேன்"]
-        income_verbs = ["vandhuchu", "varumanam", "earned", "got", "collection", "சம்பாதித்தேன்", "வந்தது"]
+        income_verbs = [
+            "vandhuchu", "varumanam", "earned", "got", "collection", "sambadhichen",
+            "sambathithen", "sambathichen", "kedaichathu", "kidaithathu", "சம்பாதித்தேன்", "வந்தது"
+        ]
         
         is_expense_verb = any(v in lower for v in expense_verbs)
         is_income_verb = any(v in lower for v in income_verbs)

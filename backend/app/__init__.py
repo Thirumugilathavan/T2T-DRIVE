@@ -1,6 +1,7 @@
 """
 T2T DRIVE Application Factory.
-Configures Flask, CORS, MongoDB, indexes, authentication, and core financial services.
+Configures Flask, CORS, MongoDB, indexes, authentication, core financial services,
+Phase 3 LangGraph Conversational Agent, and Phase 4 Voice Integration (Prisma & Timbre).
 """
 
 import logging
@@ -70,6 +71,8 @@ def create_app(config_name=None):
         audit_service=audit_service
     )
     summary_service = SummaryService(repo=transaction_repository)
+
+    # 4.5 Initialize Conversational Agent (Phase 3)
     from app.agent.service import AgentService
     agent_service = AgentService(
         db=db,
@@ -77,6 +80,51 @@ def create_app(config_name=None):
         ledger_service=ledger_service,
         summary_service=summary_service,
         settlement_service=settlement_service
+    )
+
+    # 4.6 Initialize Voice Integration (Phase 4)
+    from app.voice import (
+        AudioValidator,
+        AudioPreprocessor,
+        PrismaAdapter,
+        MockPrismaAdapter,
+        TimbreAdapter,
+        MockTimbreAdapter,
+        VoiceService
+    )
+
+    voice_mode = app.config.get("VOICE_PROVIDER_MODE", "mock").lower()
+    gnani_key = app.config.get("GNANI_API_KEY", "")
+
+    if voice_mode == "live" and gnani_key:
+        logger.info("[LIVE] Initializing live Gnani Prisma STT and Timbre TTS adapters.")
+        prisma_adapter = PrismaAdapter(
+            api_key=gnani_key,
+            endpoint_url=app.config.get("GNANI_PRISMA_ENDPOINT")
+        )
+        timbre_adapter = TimbreAdapter(
+            api_key=gnani_key,
+            endpoint_url=app.config.get("GNANI_TIMBRE_ENDPOINT")
+        )
+    else:
+        logger.info("[MOCK] Initializing mock Gnani Prisma STT and Timbre TTS adapters.")
+        prisma_adapter = MockPrismaAdapter()
+        timbre_adapter = MockTimbreAdapter()
+
+    audio_validator = AudioValidator(
+        max_upload_mb=app.config.get("VOICE_MAX_UPLOAD_MB", 10),
+        temp_dir=app.config.get("VOICE_TEMP_DIRECTORY") or None
+    )
+    audio_preprocessor = AudioPreprocessor(
+        max_duration_seconds=float(app.config.get("VOICE_MAX_DURATION_SECONDS", 60))
+    )
+
+    voice_service = VoiceService(
+        prisma_adapter=prisma_adapter,
+        timbre_adapter=timbre_adapter,
+        agent_service=agent_service,
+        validator=audio_validator,
+        preprocessor=audio_preprocessor
     )
 
     # Store in app extensions for dependency injection in routes
@@ -91,6 +139,11 @@ def create_app(config_name=None):
     app.extensions["pending_action_service"] = pending_action_service
     app.extensions["summary_service"] = summary_service
     app.extensions["agent_service"] = agent_service
+    app.extensions["prisma_adapter"] = prisma_adapter
+    app.extensions["timbre_adapter"] = timbre_adapter
+    app.extensions["audio_validator"] = audio_validator
+    app.extensions["audio_preprocessor"] = audio_preprocessor
+    app.extensions["voice_service"] = voice_service
 
     # 5. Register Blueprints
     from app.routes.health_routes import health_bp
@@ -100,6 +153,7 @@ def create_app(config_name=None):
     from app.routes.finance_routes import finance_bp
     from app.routes.settlement_routes import settlement_bp
     from app.routes.agent_routes import agent_bp
+    from app.routes.voice_routes import voice_bp, speech_bp
 
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp)
@@ -108,11 +162,13 @@ def create_app(config_name=None):
     app.register_blueprint(finance_bp)
     app.register_blueprint(settlement_bp)
     app.register_blueprint(agent_bp)
+    app.register_blueprint(voice_bp)
+    app.register_blueprint(speech_bp)
 
     # 6. Centralized Error Handlers
     register_error_handlers(app)
 
-    logger.info("T2T DRIVE Flask application factory initialized successfully with Phase 3 LangGraph Conversational Agent.")
+    logger.info("T2T DRIVE Flask application factory initialized successfully with Phase 4 Voice Integration (Prisma & Timbre).")
     return app
 
 
