@@ -1,0 +1,216 @@
+/* ==========================================================================
+   T2T DRIVE — RESPONSIVE STYLESHEET
+   Mobile First & Cab Cockpit Optimization (Phone Mounts & Tablets)
+   ========================================================================== */
+
+/* Mobile Hamburger Toggle */
+.mobile-menu-btn {
+  display: none;
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  z-index: 120;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+}
+
+.mobile-menu-btn .bar {
+  width: 20px;
+  height: 2px;
+  background-color: var(--text-main);
+  border-radius: 2px;
+  transition: all var(--transition-fast);
+}
+
+.mobile-menu-btn.open .bar:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.mobile-menu-btn.open .bar:nth-child(2) {
+  opacity: 0;
+}
+
+.mobile-menu-btn.open .bar:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 85;
+}
+
+.sidebar-overlay.active {
+  display: block;
+}
+
+/* ==========================================================================
+   BREAKPOINTS: LAPTOPS & TABLETS (max-width: 1100px)
+   ========================================================================== */
+@media (max-width: 1100px) {
+  .cockpit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .charts-double-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-overview-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .agent-kpis-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .settlement-hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vehicle-info-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ==========================================================================
+   BREAKPOINTS: TABLETS & MOBILE PHONES (max-width: 840px)
+   ========================================================================== */
+@media (max-width: 840px) {
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .app-sidebar {
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .app-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .app-main {
+    margin-left: 0;
+  }
+
+  .cockpit-topbar {
+    padding-left: 74px;
+    padding-right: 18px;
+  }
+
+  .view-tagline {
+    display: none;
+  }
+
+  .dashboard-view {
+    padding: 20px 16px 80px;
+  }
+
+  .welcome-lead {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .greeting-avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 26px;
+  }
+
+  .entity-chips-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .form-row-2 {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .vehicle-specs-flex {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .card-action-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .donut-chart-flex {
+    flex-direction: column;
+  }
+
+  .fab-voice-btn {
+    bottom: 20px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    font-size: 22px;
+  }
+}
+
+/* ==========================================================================
+   BREAKPOINTS: COMPACT MOBILE PHONES (max-width: 480px)
+   ========================================================================== */
+@media (max-width: 480px) {
+  .stats-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-kpis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vehicle-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ptt-btn {
+    width: 120px;
+    height: 120px;
+  }
+
+  .confirm-actions-row {
+    grid-template-columns: 1fr;
+  }
+
+  .lang-pill-selector {
+    padding: 2px;
+  }
+
+  .lang-pill {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .topbar-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .kbd-pill {
+    display: none;
+  }
+
+  .card {
+    padding: 16px;
+  }
+}
+

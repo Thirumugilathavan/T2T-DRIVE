@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+  <title>T2T DRIVE — Multilingual AI Voice Co-Pilot for Drivers</title>
+  <meta name="description" content="Noise-Aware, Multilingual AI Voice Co-Pilot for Auto-Rickshaw and Cab Drivers. Speak Naturally. Manage Intelligently. Drive Smarter." />
+
+  <!-- Preconnect Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <!-- Core CSS -->
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/responsive.css" />
+</head>
+<body>
+
+  <!-- MOBILE HAMBURGER BUTTON -->
+  <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle navigation menu" type="button">
+    <span class="bar"></span>
+    <span class="bar"></span>
+    <span class="bar"></span>
+  </button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- MAIN APP CONTAINER -->
+  <div class="app-container">
+
+    <!-- SIDEBAR NAVIGATION -->
+    <aside class="app-sidebar" id="appSidebar">
+      <div class="sidebar-header">
+        <div class="brand-badge">
+          <div class="brand-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 11.1 2 11.5 2 12v4c0 .6.4 1 1 1h2"/>
+              <circle cx="7" cy="17" r="2"/>
+              <path d="M9 17h6"/>
+              <circle cx="17" cy="17" r="2"/>
+            </svg>
+          </div>
+          <div class="brand-details">
+            <h1 class="brand-title">T2T DRIVE</h1>
+            <span class="brand-tagline">AI Voice Co-Pilot</span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Main Navigation">
+        <div class="nav-group-label">OPERATIONS</div>
+        <a href="#copilot" class="nav-item active" data-view="copilot">
+          <span class="nav-icon">🎙️</span>
+          <span class="nav-text">Voice Co-Pilot</span>
+          <span class="nav-badge beta">AI</span>
+        </a>
+        <a href="#finance" class="nav-item" data-view="finance">
+          <span class="nav-icon">💰</span>
+          <span class="nav-text">Finance</span>
+          <span class="nav-badge">LIVE</span>
+        </a>
+        <a href="#documents" class="nav-item" data-view="documents">
+          <span class="nav-icon">📑</span>
+          <span class="nav-text">Documents</span>
+          <span class="nav-badge warning" id="docExpBadge">2 Alert</span>
+        </a>
+
+        <div class="nav-group-label">FLEET &amp; SETTLEMENT</div>
+        <a href="#settlement" class="nav-item" data-view="settlement">
+          <span class="nav-icon">🤝</span>
+          <span class="nav-text">Owner-Driver</span>
+          <span class="nav-badge">SETTLE</span>
+        </a>
+        <a href="#vehicle" class="nav-item" data-view="vehicle">
+          <span class="nav-icon">🛺</span>
+          <span class="nav-text">Vehicle</span>
+          <span class="nav-badge">TN-09</span>
+        </a>
+
+        <div class="nav-group-label">INTELLIGENCE</div>
+        <a href="#agent" class="nav-item" data-view="agent">
+          <span class="nav-icon">🧠</span>
+          <span class="nav-text">Agent &amp; AI</span>
+          <span class="nav-badge info">TRACE</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="system-status-box">
+          <div class="status-indicator">
+            <span class="pulse-dot" id="systemPulse"></span>
+            <span class="status-title" id="systemModeTitle">MOCK MODE</span>
+          </div>
+          <div class="mode-switch-row">
+            <span class="mode-sub">Offline Simulator</span>
+            <button class="toggle-mode-btn" id="toggleModeBtn" type="button" title="Switch between Mock and Real API">
+              Switch to Live
+            </button>
+          </div>
+        </div>
+        <div class="driver-profile-mini">
+          <div class="driver-avatar">🛺</div>
+          <div class="driver-info">
+            <span class="driver-name">Selvam Murugan</span>
+            <span class="driver-meta">Auto TN-09-CB-1284</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN VIEWPORT -->
+    <main class="app-main" id="appMain">
+
+      <!-- TOP COCKPIT BAR -->
+      <header class="cockpit-topbar">
+        <div class="topbar-left">
+          <div class="active-view-meta">
+            <h2 class="view-title" id="topbarViewTitle">Voice Co-Pilot</h2>
+            <span class="view-tagline" id="topbarTagline">Speak Naturally. Manage Intelligently. Drive Smarter.</span>
+          </div>
+        </div>
+
+        <div class="topbar-right">
+          <!-- QUICK ACTION LANGUAGE SELECTOR -->
+          <div class="lang-pill-selector" role="group" aria-label="Speech Language">
+            <button type="button" class="lang-pill active" data-lang="tanglish" title="Tamil + English mix">Tanglish</button>
+            <button type="button" class="lang-pill" data-lang="ta" title="Pure Tamil">தமிழ்</button>
+            <button type="button" class="lang-pill" data-lang="en" title="English">English</button>
+          </div>
+
+          <!-- COMMAND PALETTE SHORTCUT -->
+          <button class="topbar-btn" id="searchPaletteBtn" title="Search actions (Ctrl+K)" type="button">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <span class="kbd-pill">⌘K</span>
+          </button>
+
+          <!-- THEME TOGGLE -->
+          <button class="topbar-btn theme-btn" id="themeBtn" title="Toggle Light / Dark Mode" type="button">
+            <span class="theme-icon light-icon">☀️</span>
+            <span class="theme-icon dark-icon">🌙</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- ============================================================== -->
+      <!-- SECTION A: VOICE CO-PILOT (HOME)                               -->
+      <!-- ============================================================== -->
+      <section class="dashboard-view active" id="view-copilot" data-title="Voice Co-Pilot" data-tagline="Speak Naturally. Manage Intelligently. Drive Smarter.">
+        
+        <!-- WELCOME BANNER -->
+        <div class="card welcome-cockpit-card">
+          <div class="welcome-lead">
+            <div class="greeting-avatar">🛺</div>
+            <div class="greeting-text">
+              <h3>Vanakkam, Selvam! Ready for today's rides? 🚦</h3>
+              <p>Speak your day's earnings, fuel expenses, or owner bhatta. Our noise-aware AI will extract and calculate them automatically.</p>
+            </div>
+          </div>
+          <div class="quick-sample-prompts">
+            <span class="sample-label">Try saying or tap to test:</span>
+            <button type="button" class="sample-pill" data-prompt="Inniku collection 1500, petrol 300, owner-ku 200 kuduthen.">
+              "Inniku collection 1500, petrol 300, owner-ku 200 kuduthen."
+            </button>
+            <button type="button" class="sample-pill" data-prompt="இன்னிக்கு மொத்த வசூல் 1800 ரூபாய், டீசல் 450 ரூபாய் போட்டேன்.">
+              "இன்னிக்கு மொத்த வசூல் 1800 ரூபாய், டீசல் 450 ரூபாய் போட்டேன்."
+            </button>
+            <button type="button" class="sample-pill" data-prompt="Today total fare 2100, tea expense 60, paid owner 400.">
+              "Today total fare 2100, tea expense 60, paid owner 400."
+            </button>
+          </div>
+        </div>
+
+        <!-- VOICE COCKPIT GRID -->
+        <div class="cockpit-grid">
+          
+          <!-- LEFT CARD: PRIMARY VOICE & INPUT INTERACTION -->
+          <div class="card voice-recorder-card">
+            <div class="card-header">
+              <div class="header-with-status">
+                <span class="card-badge pulse-badge">VOICE INPUT</span>
+                <h3 class="card-title">Push to Talk</h3>
+              </div>
+              <div class="noise-meter-badge" id="noiseLevelBadge" title="Ambient Road Noise Gate">
+                <span class="noise-dot"></span>
+                <span id="noiseLabel">Noise Filter: Active</span>
+              </div>
+            </div>
+
+            <!-- PUSH TO TALK HUGE BUTTON -->
+            <div class="ptt-container">
+              <button class="ptt-btn" id="pttBtn" type="button" aria-label="Push to record voice">
+                <div class="ptt-pulse-ring ring-1"></div>
+                <div class="ptt-pulse-ring ring-2"></div>
+                <div class="ptt-inner">
+                  <div class="ptt-icon-wrap">
+                    <svg class="mic-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                      <line x1="12" y1="19" x2="12" y2="22"></line>
+                    </svg>
+                  </div>
+                  <span class="ptt-label" id="pttLabel">Tap &amp; Speak</span>
+                  <span class="ptt-timer" id="pttTimer">00:00</span>
+                </div>
+              </button>
+            </div>
+
+            <!-- LIVE AUDIO WAVEFORM CANVAS -->
+            <div class="visualizer-container">
+              <canvas id="waveformCanvas" width="500" height="60"></canvas>
+              <div class="visualizer-subtext" id="visualizerSubtext">
+                Microphone idle. Ready for voice command.
+              </div>
+            </div>
+
+            <!-- AUDIO FILE UPLOAD FALLBACK -->
+            <div class="audio-upload-bar">
+              <label class="btn-secondary file-upload-label" for="audioFileInput">
+                <span>📁</span> Upload Audio File (.wav/.mp3)
+                <input type="file" id="audioFileInput" accept="audio/*" hidden />
+              </label>
+              <span class="file-name-display" id="audioFileNameDisplay">No file chosen</span>
+            </div>
+
+            <!-- TEXT PROMPT FALLBACK -->
+            <div class="text-input-wrap">
+              <label for="manualVoiceInput" class="field-label">Or Type in Tamil / Tanglish / English:</label>
+              <div class="input-action-row">
+                <input type="text" id="manualVoiceInput" class="form-control" placeholder="e.g. Inniku collection 1600, gas 350..." />
+                <button type="button" id="submitManualVoiceBtn" class="btn-primary">
+                  <span>Send</span> ➜
+                </button>
+              </div>
+            </div>
+
+            <div id="voiceAlertBox" class="alert-box hidden" role="alert"></div>
+          </div>
+
+          <!-- RIGHT CARD: INTELLIGENT AI EXTRACTION & CONFIRMATION -->
+          <div class="card ai-response-card">
+            <div class="card-header">
+              <div class="header-with-status">
+                <span class="card-badge info-badge">CO-PILOT RESPONSE</span>
+                <h3 class="card-title">AI Processing</h3>
+              </div>
+              <div class="detected-lang-pill" id="detectedLangPill">
+                Detected: <strong id="detectedLangText">—</strong>
+              </div>
+            </div>
+
+            <!-- EDITABLE TRANSCRIPT BOX -->
+            <div class="field-group">
+              <div class="label-row">
+                <label for="liveTranscriptBox" class="field-label">Recognized Speech Transcript:</label>
+                <span class="edit-hint">Click text to edit if needed</span>
+              </div>
+              <textarea id="liveTranscriptBox" class="form-control transcript-box" rows="2" placeholder="Recognized speech will appear here..."></textarea>
+            </div>
+
+            <!-- AI PARSED ENTITIES & CONFIRMATION CARD -->
+            <div class="transaction-confirm-container" id="transactionConfirmContainer">
+              <div class="confirm-card-banner">
+                <div class="confirm-icon">⚡</div>
+                <div class="confirm-banner-content">
+                  <h4 class="confirm-heading" id="confirmHeading">Pending Confirmation</h4>
+                  <p class="confirm-sub" id="confirmSub">Review extracted financial details below before saving to ledger.</p>
+                </div>
+              </div>
+
+              <div class="entity-chips-grid" id="entityChipsGrid">
+                <div class="entity-chip income">
+                  <span class="chip-label">Trip Collection</span>
+                  <strong class="chip-val" id="chipIncomeVal">₹0</strong>
+                </div>
+                <div class="entity-chip expense">
+                  <span class="chip-label">Fuel / Expense</span>
+                  <strong class="chip-val" id="chipExpenseVal">₹0</strong>
+                </div>
+                <div class="entity-chip owner">
+                  <span class="chip-label">Owner Share</span>
+                  <strong class="chip-val" id="chipOwnerVal">₹0</strong>
+                </div>
+                <div class="entity-chip net">
+                  <span class="chip-label">Your Net Margin</span>
+                  <strong class="chip-val" id="chipNetVal">₹0</strong>
+                </div>
+              </div>
+
+              <!-- CONFIRM / REJECT ACTION BUTTONS -->
+              <div class="confirm-actions-row">
+                <button type="button" class="btn-success-large" id="confirmYesBtn">
+                  <span>✓</span> Yes, Confirm &amp; Save
+                </button>
+                <button type="button" class="btn-danger-large" id="confirmNoBtn">
+                  <span>✕</span> Reject &amp; Discard
+                </button>
+              </div>
+            </div>
+
+            <!-- SYNTHESIZED VOICE RESPONSE AUDIO PLAYER -->
+            <div class="voice-reply-section" id="voiceReplySection">
+              <div class="voice-reply-header">
+                <span class="reply-icon">🔊</span>
+                <span class="reply-title">AI Voice Feedback (Gnani Timbre TTS)</span>
+                <span class="pill pill-beta" id="ttsStatusPill">SIMULATED</span>
+              </div>
+              <div class="audio-player-custom">
+                <audio id="ttsAudioPlayer" controls class="native-audio"></audio>
+                <p class="tts-text-preview" id="ttsTextPreview">"Waiting for your speech..."</p>
+              </div>
+            </div>
+
+            <!-- CONVERSATION TIMELINE -->
+            <div class="chat-history-container">
+              <div class="chat-history-header">
+                <span class="sub-heading">Conversation History</span>
+                <button type="button" class="btn-text-only" id="clearChatHistoryBtn">Clear Log</button>
+              </div>
+              <div class="chat-stream-box" id="chatStreamBox">
+                <div class="chat-bubble-entry ai">
+                  <div class="bubble-avatar">🤖</div>
+                  <div class="bubble-body">
+                    <p>Vanakkam Selvam! Press the big button and speak naturally. For example: <em>"Inniku collection 1500, petrol 300, owner-ku 200 kuduthen."</em></p>
+                    <span class="bubble-time">Just now</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- ============================================================== -->
+      <!-- SECTION B: FINANCE DASHBOARD                                    -->
+      <!-- ============================================================== -->
+      <section class="dashboard-view" id="view-finance" data-title="Finance Dashboard" data-tagline="Track Collections, Fuel Costs, and Daily Net Earnings">
+        
+        <!-- KPI METRICS ROW -->
+        <div class="stats-overview-grid" id="financeKpiRow">
+          <div class="stat-kpi-card income-stat">
+            <div class="kpi-top">
+              <span class="kpi-title">Today's Income</span>
+              <span class="kpi-icon">📈</span>
+            </div>
+            <div class="kpi-value-wrap">
+              <span class="kpi-val" id="kpiTodayIncome">₹1,500</span>
+              <span class="kpi-trend up">+8% vs yesterday</span>
+            </div>
+            <div class="kpi-bar-track"><div class="kpi-bar-fill income" style="width: 75%"></div></div>
+          </div>
+
+          <div class="stat-kpi-card expense-stat">
+            <div class="kpi-top">
+              <span class="kpi-title">Today's Expenses</span>
+              <span class="kpi-icon">⛽</span>
+            </div>
+            <div class="kpi-value-wrap">
+              <span class="kpi-val" id="kpiTodayExpenses">₹300</span>
+              <span class="kpi-sub">Petrol / CNG / Food</span>
+            </div>
+            <div class="kpi-bar-track"><div class="kpi-bar-fill expense" style="width: 25%"></div></div>
+          </div>
+
+          <div class="stat-kpi-card owner-stat">
+            <div class="kpi-top">
+              <span class="kpi-title">Owner Payment</span>
+              <span class="kpi-icon">🤝</span>
+            </div>
+            <div class="kpi-value-wrap">
+              <span class="kpi-val" id="kpiTodayOwner">₹200</span>
+              <span class="kpi-sub">Daily Bhatta / Rent</span>
+            </div>
+            <div class="kpi-bar-track"><div class="kpi-bar-fill owner" style="width: 30%"></div></div>
+          </div>
+
+          <div class="stat-kpi-card net-stat">
+            <div class="kpi-top">
+              <span class="kpi-title">Today's Net Balance</span>
+              <span class="kpi-icon">💰</span>
+            </div>
+            <div class="kpi-value-wrap">
+              <span class="kpi-val" id="kpiTodayNet">₹1,000</span>
+              <span class="kpi-trend up">Clean Take-Home</span>
+            </div>
+            <div class="kpi-bar-track"><div class="kpi-bar-fill net" style="width: 65%"></div></div>
+          </div>
+        </div>
+
+        <!-- CHARTS ROW -->
+        <div class="charts-double-grid">
+          
+          <!-- REVENUE COMPARISON BAR CHART -->
+          <div class="card chart-card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Earnings Comparison</h3>
+                <p class="card-sub">Daily Income vs Expenses (Last 7 Days)</p>
+              </div>
+              <div class="period-toggle-group">
+                <button type="button" class="period-btn active" data-period="weekly">Weekly</button>
+                <button type="button" class="period-btn" data-period="monthly">Monthly</button>
+              </div>
+            </div>
+            <div class="chart-canvas-wrap">
+              <canvas id="financeBarChart" width="550" height="260"></canvas>
+            </div>
+            <div class="chart-legend-row">
+              <div class="legend-item"><span class="legend-color income"></span> Gross Income</div>
+              <div class="legend-item"><span class="legend-color expense"></span> Expenses &amp; Fuel</div>
+            </div>
+          </div>
+
+          <!-- EXPENSE CATEGORY BREAKDOWN DONUT -->
+          <div class="card chart-card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Category Breakdown</h3>
+                <p class="card-sub">Where your money goes</p>
+              </div>
+              <span class="card-badge info-badge">Auto Analytics</span>
+            </div>
+            <div class="donut-chart-flex">
+              <div class="donut-canvas-wrap">
+                <canvas id="financeDonutChart" width="220" height="220"></canvas>
+                <div class="donut-center-stat">
+                  <span class="donut-center-label">Total Exp</span>
+                  <strong class="donut-center-val" id="donutCenterTotal">₹2,100</strong>
+                </div>
+              </div>
+              <div class="donut-legend-list" id="donutLegendList">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- TRANSACTIONS LEDGER TABLE -->
+        <div class="card table-card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Recent Transactions</h3>
+              <p class="card-sub" id="txCountSubtitle">Showing logged trips, fuel entries, and owner payouts</p>
+            </div>
+            <div class="table-filter-pills" id="txFilterGroup">
+              <button type="button" class="filter-pill active" data-filter="all">All</button>
+              <button type="button" class="filter-pill" data-filter="income">Income</button>
+              <button type="button" class="filter-pill" data-filter="expense">Expense</button>
+              <button type="button" class="filter-pill" data-filter="owner">Owner</button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th>Date &amp; Time</th>
+                  <th>Category</th>
+                  <th>Description</th>
+                  <th>Mode / Driver</th>
+                  <th class="text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody id="transactionsTableBody">
+                <!-- Dynamically rendered -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================================== -->
+      <!-- SECTION C: DOCUMENTS VAULT                                      -->
+      <!-- ============================================================== -->
+      <section class="dashboard-view" id="view-documents" data-title="Driver &amp; Vehicle Documents" data-tagline="RTO Compliance, Expiry Warnings &amp; Renewal Reminders">
+        
+        <div class="card-action-bar">
+          <div class="alert-banner-wrap">
+            <div class="compliance-status safe" id="complianceBanner">
+              <span class="comp-icon">🛡️</span>
+              <div>
+                <strong>Active Fleet RTO Status: Monitored</strong>
+                <p id="complianceText">5 transport documents loaded. 1 document requires renewal within 30 days.</p>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn-primary" id="openAddDocModalBtn">
+            <span>+</span> Add Document
+          </button>
+        </div>
+
+        <!-- DOCUMENTS CARDS GRID -->
+        <div class="documents-grid" id="documentsCardsGrid">
+          <!-- Dynamically populated cards with status rings -->
+        </div>
+
+        <!-- RTO COMPLIANCE REMINDERS CARD -->
+        <div class="card rto-info-card">
+          <div class="rto-header">
+            <div class="rto-icon">⚖️</div>
+            <div>
+              <h4 class="rto-title">Motor Vehicles Act (Amendment) Guidelines for Commercial Auto/Cab</h4>
+              <p class="rto-desc">Avoid heavy traffic police fines by keeping digital records up-to-date. Minimum penalty for expired Insurance is ₹2,000; Expired PUC is ₹1,000.</p>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================================== -->
+      <!-- SECTION D: OWNER-DRIVER SETTLEMENT                             -->
+      <!-- ============================================================== -->
+      <section class="dashboard-view" id="view-settlement" data-title="Owner-Driver Daily Settlement" data-tagline="Transparent Bhatta, Collections &amp; Dues Reconciliation">
+        
+        <div class="settlement-hero-grid">
+          
+          <!-- SETTLEMENT RECONCILER CALCULATOR CARD -->
+          <div class="card settlement-calc-card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Today's Settlement Reconciler</h3>
+                <p class="card-sub">Compare actual daily earnings against owner contract</p>
+              </div>
+              <span class="card-badge live-badge">CALCULATOR</span>
+            </div>
+
+            <form id="settlementCalcForm" class="settlement-form">
+              <div class="form-row-2">
+                <div class="field-group">
+                  <label for="settleDriverCollection" class="field-label">Total Daily Fare Collection (₹):</label>
+                  <input type="number" id="settleDriverCollection" class="form-control" value="1500" min="0" step="50" required />
+                  <span class="input-hint">Meter + App + Cash Fares</span>
+                </div>
+                <div class="field-group">
+                  <label for="settleOwnerExpected" class="field-label">Owner Expected Daily Rent / Target (₹):</label>
+                  <input type="number" id="settleOwnerExpected" class="form-control" value="500" min="0" step="50" required />
+                  <span class="input-hint">Agreed daily vehicle rent</span>
+                </div>
+              </div>
+
+              <div class="form-row-2">
+                <div class="field-group">
+                  <label for="settleDriverFuel" class="field-label">Driver Fuel Incurred (₹):</label>
+                  <input type="number" id="settleDriverFuel" class="form-control" value="300" min="0" step="10" />
+                  <span class="input-hint">Petrol / CNG / EV charge</span>
+                </div>
+                <div class="field-group">
+                  <label for="settleAmountPaid" class="field-label">Amount Paid to Owner Today (₹):</label>
+                  <input type="number" id="settleAmountPaid" class="form-control" value="500" min="0" step="50" required />
+                  <span class="input-hint">Cash / UPI Transfer</span>
+                </div>
+              </div>
+
+              <button type="submit" class="btn-primary-large" id="calculateSettlementBtn">
+                ⚡ Calculate Reconciliation Difference
+              </button>
+            </form>
+
+            <!-- SETTLEMENT DIFFERENCE CARD -->
+            <div class="settlement-status-banner matched" id="settlementResultBanner">
+              <div class="result-left">
+                <span class="result-badge-pill" id="settleStatusPill">MATCHED</span>
+                <h4 class="result-title" id="settleStatusTitle">Settlement In Balance</h4>
+                <p class="result-desc" id="settleStatusDesc">Driver collection meets the owner's expected daily quota.</p>
+              </div>
+              <div class="result-right">
+                <span class="diff-label">Net Variance</span>
+                <span class="diff-amount" id="settleDiffAmount">₹0</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- SUMMARY KPIS & OWNER INFO -->
+          <div class="card owner-details-card">
+            <div class="card-header">
+              <h3 class="card-title">Owner Contract Profile</h3>
+              <span class="card-badge">AUTO OWNER</span>
+            </div>
+            
+            <div class="owner-profile-block">
+              <div class="owner-avatar">👨‍💼</div>
+              <div class="owner-meta">
+                <h4>K. Ramanathan</h4>
+                <p>Fleet Partner · 3 Autos</p>
+                <div class="phone-link">📞 +91 98401 22345</div>
+              </div>
+            </div>
+
+            <div class="settlement-stats-list">
+              <div class="stat-line">
+                <span class="stat-name">Agreed Daily Rent:</span>
+                <span class="stat-bold">₹500 / day</span>
+              </div>
+              <div class="stat-line">
+                <span class="stat-name">This Week Paid:</span>
+                <span class="stat-bold text-success">₹3,500</span>
+              </div>
+              <div class="stat-line">
+                <span class="stat-name">Outstanding Balance:</span>
+                <span class="stat-bold text-danger">₹0 (All Clear)</span>
+              </div>
+              <div class="stat-line">
+                <span class="stat-name">Settlement Mode:</span>
+                <span class="stat-bold">Daily GPay / Cash</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- SETTLEMENT HISTORY TABLE -->
+        <div class="card table-card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Settlement History Ledger</h3>
+              <p class="card-sub">Daily reconciliation logs between Driver and Owner</p>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Driver Collection</th>
+                  <th>Owner Quota</th>
+                  <th>Amount Paid</th>
+                  <th>Difference</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="settlementHistoryTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================================== -->
+      <!-- SECTION E: VEHICLE HEALTH & MAINTENANCE                        -->
+      <!-- ============================================================== -->
+      <section class="dashboard-view" id="view-vehicle" data-title="Vehicle Health &amp; Maintenance" data-tagline="Auto Telemetry, Service Logs &amp; Preventive Care">
+        
+        <!-- VEHICLE TELEMETRY BANNER -->
+        <div class="vehicle-hero-card">
+          <div class="vehicle-specs-flex">
+            <div class="vehicle-visual">
+              <div class="auto-badge-large">🛺</div>
+              <div class="vehicle-reg-box">
+                <span class="ind-stripe">IND</span>
+                <span class="reg-number">TN-09 CB 1284</span>
+              </div>
+            </div>
+            <div class="vehicle-info-grid">
+              <div class="v-spec-item">
+                <span class="v-label">Model</span>
+                <strong class="v-val">Bajaj RE Compact 4S</strong>
+              </div>
+              <div class="v-spec-item">
+                <span class="v-label">Fuel Type</span>
+                <strong class="v-val">LPG / Petrol Dual</strong>
+              </div>
+              <div class="v-spec-item">
+                <span class="v-label">Odometer Reading</span>
+                <strong class="v-val">64,280 km</strong>
+              </div>
+              <div class="v-spec-item">
+                <span class="v-label">Engine Condition</span>
+                <strong class="v-val text-success">Good (Serviced)</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SERVICE MILESTONES & ADD SERVICE FORM -->
+        <div class="charts-double-grid">
+          
+          <!-- SERVICE INTERVALS CARD -->
+          <div class="card service-schedule-card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Preventive Service Schedule</h3>
+                <p class="card-sub">Next scheduled tune-ups to avoid road breakdowns</p>
+              </div>
+              <span class="card-badge live-badge">TELEMETRY</span>
+            </div>
+
+            <div class="service-timeline" id="serviceTimeline">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- LOG MAINTENANCE FORM -->
+          <div class="card maintenance-form-card">
+            <div class="card-header">
+              <div>
+                <h3 class="card-title">Log Service / Repair</h3>
+                <p class="card-sub">Record maintenance costs to deduct from profit</p>
+              </div>
+            </div>
+
+            <form id="addMaintenanceForm" class="vehicle-form">
+              <div class="field-group">
+                <label for="maintServiceType" class="field-label">Service Type / Work Done:</label>
+                <select id="maintServiceType" class="form-control" required>
+                  <option value="Engine Oil & Oil Filter Change">Engine Oil &amp; Filter Change</option>
+                  <option value="Brake Shoe Replacement">Brake Shoe / Brake Liner</option>
+                  <option value="Spark Plug & Carburetor Tune">Spark Plug &amp; Carburetor</option>
+                  <option value="Clutch Cable Replacement">Clutch Cable / Wire</option>
+                  <option value="Tyre Replacement / Puncture">Tyre / Tube Repair</option>
+                  <option value="Battery Water & Electricals">Battery &amp; Electricals</option>
+                  <option value="Other General Repair">Other General Repair</option>
+                </select>
+              </div>
+
+              <div class="form-row-2">
+                <div class="field-group">
+                  <label for="maintDate" class="field-label">Service Date:</label>
+                  <input type="date" id="maintDate" class="form-control" required />
+                </div>
+                <div class="field-group">
+                  <label for="maintCost" class="field-label">Cost Incurred (₹):</label>
+                  <input type="number" id="maintCost" class="form-control" placeholder="e.g. 450" min="0" required />
+                </div>
+              </div>
+
+              <div class="field-group">
+                <label for="maintWorkshop" class="field-label">Garage / Mechanic Name:</label>
+                <input type="text" id="maintWorkshop" class="form-control" placeholder="e.g. Shanmugam Auto Works, T.Nagar" />
+              </div>
+
+              <button type="submit" class="btn-primary" id="saveMaintenanceBtn">
+                Save Maintenance Entry
+              </button>
+            </form>
+          </div>
+
+        </div>
+
+        <!-- MAINTENANCE HISTORY TABLE -->
+        <div class="card table-card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Maintenance &amp; Repair History</h3>
+              <p class="card-sub">Past garage expenditures and parts replaced</p>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Service Type</th>
+                  <th>Garage / Mechanic</th>
+                  <th>Odometer</th>
+                  <th class="text-right">Cost</th>
+                </tr>
+              </thead>
+              <tbody id="maintenanceHistoryTableBody">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ============================================================== -->
+      <!-- SECTION F: AGENT & AI TRACE / DIAGNOSTICS                      -->
+      <!-- ============================================================== -->
+      <section class="dashboard-view" id="view-agent" data-title="Agent &amp; AI Diagnostic Console" data-tagline="Gnani ASR Telemetry, Intent Classifier, Slot-Filling &amp; SNR Evaluation">
+        
+        <!-- STATUS OVERVIEW -->
+        <div class="agent-kpis-grid">
+          <div class="card agent-status-tile">
+            <span class="tile-label">ASR Model</span>
+            <strong class="tile-val">Gnani Indic-ASR</strong>
+            <span class="pill pill-live">Tamil + Tanglish</span>
+          </div>
+          <div class="card agent-status-tile">
+            <span class="tile-label">NLU Classifier</span>
+            <strong class="tile-val">Intent &amp; Slots</strong>
+            <span class="pill pill-beta">Rule + LLM</span>
+          </div>
+          <div class="card agent-status-tile">
+            <span class="tile-label">TTS Engine</span>
+            <strong class="tile-val">Gnani Timbre</strong>
+            <span class="pill pill-planned">PLANNED (TTS)</span>
+          </div>
+          <div class="card agent-status-tile">
+            <span class="tile-label">Noise Floor (SNR)</span>
+            <strong class="tile-val" id="agentSnrVal">24.2 dB</strong>
+            <span class="pill pill-live">Good Road SNR</span>
+          </div>
+        </div>
+
+        <!-- 6-STEP AI PIPELINE TRACE TIMELINE -->
+        <div class="card trace-timeline-card">
+          <div class="card-header">
+            <div>
+              <h3 class="card-title">Real-Time AI Pipeline Trace</h3>
+              <p class="card-sub">Inspection of internal decision stages for the latest voice/text command</p>
+            </div>
+            <span class="card-badge info-badge">LIVE TRACE</span>
+          </div>
+
+          <div class="pipeline-stepper" id="pipelineStepper">
+            <!-- Dynamically populated 6 steps -->
+          </div>
+        </div>
+
+        <!-- DETAILED TELEMETRY GRID -->
+        <div class="charts-double-grid">
+          
+          <!-- EXTRACTED ENTITIES INSPECTOR -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Extracted Entities &amp; Slots</h3>
+              <span class="card-badge">JSON SLOTS</span>
+            </div>
+            <div class="code-inspector">
+              <pre id="rawEntitiesJson"><code>{
+  "intent": "log_transaction",
+  "entities": {
+    "income": 1500,
+    "expense": 300,
+    "category": "petrol",
+    "owner_payment": 200
+  },
+  "confidence": 0.96,
+  "language": "tanglish"
+}</code></pre>
+            </div>
+          </div>
+
+          <!-- NOISE & ENVIRONMENT EVALUATION -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Noise Gate &amp; Acoustic Profile</h3>
+              <span class="card-badge">AUTO COCKPIT</span>
+            </div>
+            <div class="acoustic-profile-box">
+              <div class="profile-metric">
+                <span class="p-label">Acoustic Environment:</span>
+                <strong class="p-val">Auto-Rickshaw Cabin (Engine Running)</strong>
+              </div>
+              <div class="profile-metric">
+                <span class="p-label">Estimated Engine RPM Noise:</span>
+                <strong class="p-val">120 Hz - 400 Hz (Attenuated)</strong>
+              </div>
+              <div class="profile-metric">
+                <span class="p-label">Speech Bandpass Filter:</span>
+                <strong class="p-val text-success">Active (300 Hz - 3400 Hz)</strong>
+              </div>
+              <div class="profile-metric">
+                <span class="p-label">Mock Simulation:</span>
+                <strong class="p-val text-warning">Active (Synthetic Audio Stream)</strong>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- FLOATING ACTION BUTTON (QUICK VOICE ACCESS) -->
+  <button class="fab-voice-btn" id="fabVoiceBtn" type="button" title="Quick Talk to T2T DRIVE">
+    <div class="fab-pulse"></div>
+    <span class="fab-icon">🎙️</span>
+  </button>
+
+  <!-- ADD DOCUMENT MODAL -->
+  <div class="modal-backdrop" id="addDocModal" role="dialog" aria-modal="true" aria-labelledby="addDocTitle">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="addDocTitle">Register New Document</h3>
+        <button type="button" class="modal-close-btn" id="closeDocModalBtn" aria-label="Close dialog">✕</button>
+      </div>
+      <form id="addDocumentForm" class="modal-form">
+        <div class="field-group">
+          <label for="docTypeSelect" class="field-label">Document Type:</label>
+          <select id="docTypeSelect" class="form-control" required>
+            <option value="Driving Licence">Driving Licence (DL)</option>
+            <option value="Vehicle Insurance">Vehicle Insurance</option>
+            <option value="Auto Permit">Vehicle Permit</option>
+            <option value="Fitness Certificate">Fitness Certificate (FC)</option>
+            <option value="PUC (Pollution Certificate)">PUC Certificate</option>
+            <option value="Road Tax Token">Road Tax Token</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="docNumberInput" class="field-label">Document / Policy Number:</label>
+          <input type="text" id="docNumberInput" class="form-control" placeholder="e.g. TN-01-2023-00492" required />
+        </div>
+        <div class="field-group">
+          <label for="docExpiryInput" class="field-label">Expiry Date:</label>
+          <input type="date" id="docExpiryInput" class="form-control" required />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="cancelDocModalBtn">Cancel</button>
+          <button type="submit" class="btn-primary" id="saveDocSubmitBtn">Save Document</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- COMMAND PALETTE (CMD+K) -->
+  <div class="palette-backdrop" id="paletteBackdrop">
+    <div class="palette-modal">
+      <div class="palette-search-wrap">
+        <span class="search-ico">🔍</span>
+        <input type="text" id="paletteSearchInput" placeholder="Type a view (voice, finance...) or voice command..." autocomplete="off" />
+        <span class="palette-esc">ESC</span>
+      </div>
+      <div class="palette-results" id="paletteResults">
+        <!-- Dynamically rendered -->
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div class="toast-hub" id="toastHub" role="status" aria-live="polite"></div>
+
+  <!-- SCRIPTS IN PROPER DEPENDENCY ORDER -->
+  <script src="js/mock-api.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/navigation.js"></script>
+  <script src="js/voice.js"></script>
+  <script src="js/finance.js"></script>
+  <script src="js/documents.js"></script>
+  <script src="js/settlement.js"></script>
+  <script src="js/vehicle.js"></script>
+  <script src="js/agent.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
