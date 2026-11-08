@@ -29,6 +29,9 @@ class AgentService:
         ledger_service=None,
         summary_service=None,
         settlement_service=None,
+        document_service=None,
+        challan_service=None,
+        maintenance_service=None,
         checkpointer=None
     ):
         self.db = db
@@ -36,12 +39,18 @@ class AgentService:
         self.ledger_svc = ledger_service
         self.summary_svc = summary_service
         self.settlement_svc = settlement_service
+        self.document_svc = document_service
+        self.challan_svc = challan_service
+        self.maintenance_svc = maintenance_service
 
         # Initialize LangGraph node handlers and compile workflow
         self.nodes = AgentNodes(
             pending_action_service=pending_action_service,
             summary_service=summary_service,
             settlement_service=settlement_service,
+            document_service=document_service,
+            challan_service=challan_service,
+            maintenance_service=maintenance_service,
             db=db
         )
         self.graph = build_agent_graph(self.nodes, checkpointer=checkpointer)

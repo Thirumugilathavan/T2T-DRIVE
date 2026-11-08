@@ -1,14 +1,17 @@
 import datetime
 from flask import jsonify
 
-def success_response(data=None, meta=None, status_code=200):
+def success_response(data=None, meta=None, status_code=200, message=None):
     """Generates standard success response envelope."""
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    meta_dict = dict(meta or {"timestamp": now_iso})
+    if message:
+        meta_dict["message"] = message
     envelope = {
         "success": True,
         "data": data if data is not None else {},
         "error": None,
-        "meta": meta or {"timestamp": now_iso}
+        "meta": meta_dict
     }
     return jsonify(envelope), status_code
 

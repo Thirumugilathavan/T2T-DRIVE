@@ -4,7 +4,7 @@ Generates localized UI display text and natural speech text (for TTS playback)
 in Tanglish (Romanized Tamil), Tamil script, and English.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from decimal import Decimal
 
 
@@ -154,32 +154,35 @@ def prompt_help(language: str = "tanglish") -> Dict[str, str]:
         text = (
             "🤖 T2T DRIVE குரல் உதவியாளர் - நீங்கள் இவ்வாறு கூறலாம்:\n"
             "1. 'டீசல் 400 போட்டேன்' (செலவு பதிவு செய்ய)\n"
-            "2. 'சவாரி 1200 வந்தது' (வருமானம் பதிவு செய்ய)\n"
-            "3. 'ஓனருக்கு 350 கொடுத்தேன்' (வாடகை பதிவு செய்ய)\n"
-            "4. 'இன்றைய கணக்கு' (தினசரி சுருக்கம் பார்க்க)\n"
-            "5. 'செட்டில்மென்ட் செய்' (வாடகை கணக்கு பார்க்க)"
+            "2. 'சர்வீஸ்க்கு 1200 செலவு ஆச்சு' (பராமரிப்பு செலவு)\n"
+            "3. 'என் இன்சூரன்ஸ் எப்போ முடியும்?' (ஆவண காலாவதி)\n"
+            "4. 'எனக்கு சலான் இருக்கா?' (அபராத விவரம்)\n"
+            "5. 'அடுத்த சர்வீஸ் எப்போது?' (பராமரிப்பு அட்டவணை)\n"
+            "6. 'இன்றைய கணக்கு' (தினசரி சுருக்கம்)"
         )
-        voice = "நீங்கள் டீசல் செலவு, சவாரி வருமானம், ஓனர் வாடகை பதிவு செய்யலாம். அல்லது இன்றைய கணக்கு விவரங்களை கேட்கலாம்."
+        voice = "நீங்கள் டீசல் மற்றும் சர்வீஸ் செலவு, இன்சூரன்ஸ் காலாவதி தேதி, அல்லது நிலுவை சலான்களைப் பற்றி கேட்கலாம்."
     elif language == "english":
         text = (
             "🤖 T2T DRIVE Voice Co-Pilot - Examples you can say:\n"
-            "1. 'Filled diesel 400' (record expense)\n"
-            "2. 'Trip fare 1200' (record income)\n"
-            "3. 'Paid 350 to owner' (record owner rent)\n"
-            "4. 'Show today's summary' (check daily earnings)\n"
-            "5. 'Calculate settlement' (check vehicle settlement)"
+            "1. 'Filled diesel 400' (record fuel)\n"
+            "2. 'Auto service cost 1200' (record maintenance)\n"
+            "3. 'When does my insurance expire?' (document expiry)\n"
+            "4. 'Do I have any unpaid challans?' (traffic fines)\n"
+            "5. 'When is my next service?' (maintenance schedule)\n"
+            "6. 'Show today's summary' (daily report)"
         )
-        voice = "You can record expenses, trip fares, owner rent, or ask for your daily summary and settlement status."
+        voice = "You can record expenses, check when your insurance expires, check unpaid challans, or ask for your daily summary."
     else:  # tanglish
         text = (
             "🤖 T2T DRIVE Voice Co-Pilot - Neenga ippadi solla mudiyum:\n"
-            "1. 'Diesel 400 potten' (selavu pathivu seiya)\n"
-            "2. 'Savari 1200 aachu' (varumanam pathivu seiya)\n"
-            "3. 'Ownerukku 350 kuduthen' (rent payment)\n"
-            "4. 'Inniku kanaku sollu' (daily summary)\n"
-            "5. 'Settlement panni kudu' (settlement status)"
+            "1. 'Diesel 400 potten' (fuel selavu)\n"
+            "2. 'Auto service ku 1200 selavu aachu' (maintenance)\n"
+            "3. 'En insurance eppo expire aagum?' (document expiry)\n"
+            "4. 'Enakku unpaid challan irukka?' (traffic fine)\n"
+            "5. 'En auto ku service eppo?' (upcoming service)\n"
+            "6. 'Inniku kanaku sollu' (daily summary)"
         )
-        voice = "Neenga diesel selavu, savari varumanam, owner rent pathivu seiyalaam. Illana inniku kanaku summary kekkalam."
+        voice = "Neenga diesel selavu, auto service selavu, insurance expiry, challan nilavaram, illana inniku kanaku summary kekkalam."
 
     return {"text": text, "voice": voice}
 
@@ -187,13 +190,222 @@ def prompt_help(language: str = "tanglish") -> Dict[str, str]:
 def prompt_unknown(language: str = "tanglish") -> Dict[str, str]:
     """Handles unrecognized voice or text input."""
     if language == "tamil":
-        text = "மன்னிக்கவும், எனக்கு புரியவில்லை. 'டீசல் 400' அல்லது 'இன்றைய கணக்கு' என்று கூறவும். மேலும் அறிய 'உதவி' என்று கேட்கவும்."
+        text = "மன்னிக்கவும், எனக்கு புரியவில்லை. 'டீசல் 400' அல்லது 'இன்சூரன்ஸ் எப்போ முடியும்' என்று கூறவும். மேலும் அறிய 'உதவி' என்று கேட்கவும்."
         voice = "மன்னிக்கவும், எனக்கு புரியவில்லை. உதவி என்று சொன்னால் வழிகாட்டுகிறேன்."
     elif language == "english":
-        text = "Sorry, I couldn't understand that. You can say 'Diesel 400' or 'Show summary'. Say 'Help' for guidance."
+        text = "Sorry, I couldn't understand that. You can say 'Diesel 400', 'When does my insurance expire?', or 'Help' for guidance."
         voice = "Sorry, I didn't get that. Say help for instructions."
     else:  # tanglish
-        text = "Puriyala nga. 'Diesel 400' or 'Inniku kanaku' nu sollunga. Guidance theva pattal 'Help' nu sollunga."
+        text = "Puriyala nga. 'Diesel 400' or 'Insurance eppo expire' nu sollunga. Guidance theva pattal 'Help' nu sollunga."
         voice = "Puriyala nga. Help nu sonna guidance tharen."
 
     return {"text": text, "voice": voice}
+
+
+# ============================================================================
+# PHASE 5 PROMPTS (DOCUMENTS, CHALLANS, MAINTENANCE)
+# ============================================================================
+
+def prompt_document_expiry(
+    doc_type: str,
+    expiry_date: Optional[str],
+    days_left: Optional[int],
+    language: str = "tanglish"
+) -> Dict[str, str]:
+    """Generates localized response for document expiry queries."""
+    if not expiry_date:
+        if language == "tamil":
+            return {
+                "text": f"{doc_type} ஆவணத்தின் காலாவதி தேதி எதுவும் பதிவு செய்யப்படவில்லை.",
+                "voice": f"{doc_type} காலாவதி தேதி பதிவு செய்யப்படவில்லை."
+            }
+        elif language == "english":
+            return {
+                "text": f"No expiry date recorded for your {doc_type}.",
+                "voice": f"No expiry date recorded for your {doc_type}."
+            }
+        else:
+            return {
+                "text": f"Ungal {doc_type}-kku expiry date ethuvum pathivu seiyala.",
+                "voice": f"Ungal {doc_type}-kku expiry date pathivu seiyala."
+            }
+
+    if days_left is not None and days_left < 0:
+        abs_days = abs(days_left)
+        if language == "tamil":
+            return {
+                "text": f"எச்சரிக்கை: உங்கள் {doc_type} {abs_days} நாட்களுக்கு முன் ({expiry_date}) காலாவதியானது. உடனடியாக புதுப்பிக்கவும்!",
+                "voice": f"எச்சரிக்கை: உங்கள் {doc_type} {abs_days} நாட்களுக்கு முன்பே காலாவதியாகிவிட்டது."
+            }
+        elif language == "english":
+            return {
+                "text": f"Alert: Your {doc_type} expired {abs_days} days ago on {expiry_date}. Please renew immediately!",
+                "voice": f"Alert: Your {doc_type} expired {abs_days} days ago on {expiry_date}."
+            }
+        else:
+            return {
+                "text": f"Alert: Ungal {doc_type} {abs_days} naalaiki munnadiye ({expiry_date}) expire aayiduchu. Udane renew pannunga!",
+                "voice": f"Alert: Ungal {doc_type} {abs_days} naalaiki munnadiye expire aayiduchu."
+            }
+    elif days_left is not None and days_left == 0:
+        if language == "tamil":
+            return {
+                "text": f"உங்கள் {doc_type} இன்றே ({expiry_date}) காலாவதியாகிறது!",
+                "voice": f"உங்கள் {doc_type} இன்றே காலாவதியாகிறது."
+            }
+        elif language == "english":
+            return {
+                "text": f"Your {doc_type} expires today ({expiry_date})!",
+                "voice": f"Your {doc_type} expires today."
+            }
+        else:
+            return {
+                "text": f"Ungal {doc_type} innike ({expiry_date}) expire aagudhu!",
+                "voice": f"Ungal {doc_type} innike expire aagudhu."
+            }
+    else:
+        days_str = f"({days_left} நாட்கள் உள்ளன)" if days_left is not None else ""
+        if language == "tamil":
+            return {
+                "text": f"உங்கள் {doc_type} {expiry_date} அன்று காலாவதியாகும். {days_str}",
+                "voice": f"உங்கள் {doc_type} {expiry_date} அன்று முடிவடையும்."
+            }
+        elif language == "english":
+            return {
+                "text": f"Your {doc_type} expires on {expiry_date} ({days_left} days remaining).",
+                "voice": f"Your {doc_type} expires on {expiry_date}."
+            }
+        else:
+            return {
+                "text": f"Ungal {doc_type} {expiry_date} anru expire aagum. ({days_left} days balance irukku)",
+                "voice": f"Ungal {doc_type} {expiry_date} anru expire aagum."
+            }
+
+
+def prompt_unpaid_challans(
+    count: int,
+    total_fine: Any,
+    language: str = "tanglish"
+) -> Dict[str, str]:
+    """Generates localized response for unpaid challan queries."""
+    tot_str = format_inr(total_fine)
+    if count == 0:
+        if language == "tamil":
+            return {
+                "text": "உங்களுக்கு எந்தவித நிலுவை சலான்களும் இல்லை. உங்கள் வாகனம் அனைத்தும் சரியாக உள்ளது!",
+                "voice": "உங்களுக்கு எந்த நிலுவை சலான்களும் இல்லை. அனைத்தும் சரியாக உள்ளது."
+            }
+        elif language == "english":
+            return {
+                "text": "You have no unpaid challans. All clear!",
+                "voice": "You have no unpaid challans. All clear!"
+            }
+        else:
+            return {
+                "text": "Ungalukku endha unpaid challan-um illa. All clear!",
+                "voice": "Ungalukku endha unpaid challan-um illa. All clear!"
+            }
+    else:
+        if language == "tamil":
+            return {
+                "text": f"உங்களுக்கு {count} நிலுவை சலான்(கள்) உள்ளன. மொத்த அபராதம்: ₹{tot_str}.",
+                "voice": f"உங்களுக்கு {count} நிலுவை சலான்கள் உள்ளன. மொத்த அபராதம் ரூபாய் {tot_str}."
+            }
+        elif language == "english":
+            return {
+                "text": f"You have {count} unpaid challan(s) totaling ₹{tot_str}.",
+                "voice": f"You have {count} unpaid challans totaling {tot_str} rupees."
+            }
+        else:
+            return {
+                "text": f"Ungalukku {count} unpaid challan(s) irukku. Total fine amount: ₹{tot_str}.",
+                "voice": f"Ungalukku {count} unpaid challan irukku. Total fine roobai {tot_str}."
+            }
+
+
+def prompt_upcoming_service(
+    service_type: Optional[str],
+    next_date: Optional[str],
+    next_km: Optional[int],
+    language: str = "tanglish"
+) -> Dict[str, str]:
+    """Generates localized response for vehicle maintenance queries."""
+    if not next_date and not next_km:
+        if language == "tamil":
+            return {
+                "text": "உங்கள் வண்டிக்கு அடுத்த சர்வீஸ் தேதி எதுவும் திட்டமிடப்படவில்லை.",
+                "voice": "உங்கள் வண்டிக்கு அடுத்த சர்வீஸ் தேதி எதுவும் திட்டமிடப்படவில்லை."
+            }
+        elif language == "english":
+            return {
+                "text": "No upcoming service scheduled for your vehicle.",
+                "voice": "No upcoming service scheduled for your vehicle."
+            }
+        else:
+            return {
+                "text": "Ungal vandikku adutha service thethi schedule pannala.",
+                "voice": "Ungal vandikku adutha service schedule pannala."
+            }
+
+    srv_desc = service_type or "General Service"
+    date_part = f"on {next_date}" if next_date else ""
+    km_part = f"at {next_km} km" if next_km else ""
+
+    if language == "tamil":
+        return {
+            "text": f"உங்கள் வண்டிக்கான அடுத்த {srv_desc} சர்வீஸ்: {next_date or ''} {km_part}.",
+            "voice": f"உங்கள் அடுத்த சர்வீஸ் {next_date or ''} திட்டமிடப்பட்டுள்ளது."
+        }
+    elif language == "english":
+        return {
+            "text": f"Your next scheduled {srv_desc} is due {date_part} {km_part}.",
+            "voice": f"Your next scheduled {srv_desc} is due {date_part}."
+        }
+    else:
+        return {
+            "text": f"Ungal auto adutha {srv_desc} {next_date or ''} schedule pannirukkinga {km_part}.",
+            "voice": f"Ungal adutha service {next_date or ''} anru schedule pannirukkinga."
+        }
+
+
+def prompt_documents_list(
+    count: int,
+    documents: list,
+    language: str = "tanglish"
+) -> Dict[str, str]:
+    """Generates summary list of driver's active documents."""
+    if count == 0:
+        if language == "tamil":
+            return {
+                "text": "உங்களிடம் பதிவு செய்யப்பட்ட ஆவணங்கள் எதுவும் இல்லை.",
+                "voice": "உங்களிடம் ஆவணங்கள் எதுவும் பதிவு செய்யப்படவில்லை."
+            }
+        elif language == "english":
+            return {
+                "text": "You have no documents registered in your vault.",
+                "voice": "You have no documents registered in your vault."
+            }
+        else:
+            return {
+                "text": "Ungal vault-il documents ethuvum pathivu seiyala.",
+                "voice": "Ungal vault-il documents ethuvum pathivu seiyala."
+            }
+
+    doc_names = [d.get("document_type", "Document") for d in documents[:4]]
+    names_str = ", ".join(doc_names)
+
+    if language == "tamil":
+        return {
+            "text": f"உங்களிடம் {count} ஆவணங்கள் பதிவு செய்யப்பட்டுள்ளன: {names_str}.",
+            "voice": f"உங்களிடம் {count} ஆவணங்கள் உள்ளன."
+        }
+    elif language == "english":
+        return {
+            "text": f"You have {count} registered documents: {names_str}.",
+            "voice": f"You have {count} registered documents."
+        }
+    else:
+        return {
+            "text": f"Ungalukku {count} documents pathivu seiyappattulladhu: {names_str}.",
+            "voice": f"Ungalukku {count} documents pathivu seiyappattulladhu."
+        }

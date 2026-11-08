@@ -1,6 +1,7 @@
 """
 LangGraph State Machine Definition for T2T DRIVE Conversational Agent.
 Assembles the state graph, defines nodes, sets routing logic, and compiles with checkpointer.
+Includes Phase 5 support for Document, Challan, and Maintenance assistance.
 """
 
 from typing import Dict, Any, Optional
@@ -26,7 +27,7 @@ def route_after_nlu(state: AgentState) -> str:
     if has_pending and intent == AgentIntent.CANCEL_ACTION:
         return "cancel_action"
 
-    # 2. If missing required slots (e.g. amount was not provided)
+    # 2. If missing required slots (e.g. amount was not provided for an expense)
     if missing:
         return "slot_filling"
 
@@ -34,21 +35,36 @@ def route_after_nlu(state: AgentState) -> str:
     if intent in (
         AgentIntent.RECORD_EXPENSE,
         AgentIntent.RECORD_INCOME,
-        AgentIntent.RECORD_OWNER_PAYMENT
+        AgentIntent.RECORD_OWNER_PAYMENT,
+        AgentIntent.ADD_MAINTENANCE
     ):
         return "propose_action"
 
-    # 4. Reporting intents
+    # 4. Phase 5 Document Assistance Intents
+    if intent == AgentIntent.CHECK_DOCUMENT_EXPIRY:
+        return "query_document_expiry"
+    if intent == AgentIntent.LIST_DOCUMENTS:
+        return "query_documents_list"
+
+    # 5. Phase 5 Challan Assistance Intents
+    if intent in (AgentIntent.CHECK_UNPAID_CHALLANS, AgentIntent.LIST_CHALLANS):
+        return "query_unpaid_challans"
+
+    # 6. Phase 5 Maintenance Schedule Intents
+    if intent in (AgentIntent.CHECK_UPCOMING_SERVICE, AgentIntent.CHECK_OVERDUE_SERVICE):
+        return "query_upcoming_service"
+
+    # 7. Reporting intents
     if intent == AgentIntent.GET_SUMMARY:
         return "query_summary"
     if intent == AgentIntent.CALCULATE_SETTLEMENT:
         return "query_settlement"
 
-    # 5. Help guidance
+    # 8. Help guidance
     if intent == AgentIntent.HELP:
         return "help"
 
-    # 6. Fallback
+    # 9. Fallback
     return "fallback"
 
 
@@ -66,6 +82,10 @@ def build_agent_graph(nodes: AgentNodes, checkpointer=None):
     workflow.add_node("cancel_action", nodes.action_cancellation_node)
     workflow.add_node("query_summary", nodes.query_summary_node)
     workflow.add_node("query_settlement", nodes.query_settlement_node)
+    workflow.add_node("query_document_expiry", nodes.query_document_expiry_node)
+    workflow.add_node("query_documents_list", nodes.query_documents_list_node)
+    workflow.add_node("query_unpaid_challans", nodes.query_unpaid_challans_node)
+    workflow.add_node("query_upcoming_service", nodes.query_upcoming_service_node)
     workflow.add_node("help", nodes.help_node)
     workflow.add_node("fallback", nodes.fallback_node)
 
@@ -83,6 +103,10 @@ def build_agent_graph(nodes: AgentNodes, checkpointer=None):
             "propose_action": "propose_action",
             "query_summary": "query_summary",
             "query_settlement": "query_settlement",
+            "query_document_expiry": "query_document_expiry",
+            "query_documents_list": "query_documents_list",
+            "query_unpaid_challans": "query_unpaid_challans",
+            "query_upcoming_service": "query_upcoming_service",
             "help": "help",
             "fallback": "fallback",
         }
@@ -95,6 +119,10 @@ def build_agent_graph(nodes: AgentNodes, checkpointer=None):
     workflow.add_edge("cancel_action", END)
     workflow.add_edge("query_summary", END)
     workflow.add_edge("query_settlement", END)
+    workflow.add_edge("query_document_expiry", END)
+    workflow.add_edge("query_documents_list", END)
+    workflow.add_edge("query_unpaid_challans", END)
+    workflow.add_edge("query_upcoming_service", END)
     workflow.add_edge("help", END)
     workflow.add_edge("fallback", END)
 

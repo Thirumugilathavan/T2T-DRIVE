@@ -1,7 +1,8 @@
 """
 T2T DRIVE Application Factory.
 Configures Flask, CORS, MongoDB, indexes, authentication, core financial services,
-Phase 3 LangGraph Conversational Agent, and Phase 4 Voice Integration (Prisma & Timbre).
+Phase 3 LangGraph Conversational Agent, Phase 4 Voice Integration (Prisma & Timbre),
+and Phase 5 Document Management, Challan Assistance, and Vehicle Maintenance.
 """
 
 import logging
@@ -19,6 +20,17 @@ from app.services.settlement_service import SettlementService
 from app.services.pending_action_service import PendingActionService
 from app.services.summary_service import SummaryService
 from app.utils.responses import error_response
+
+# Phase 5 Imports
+from app.utils.storage import LocalStorageAdapter
+from app.repositories.document_repository import DocumentRepository
+from app.repositories.challan_repository import ChallanRepository
+from app.repositories.maintenance_repository import MaintenanceRepository
+from app.repositories.reminder_repository import ReminderRepository
+from app.services.reminder_service import ReminderService, MockNotificationAdapter, SMSNotificationAdapter
+from app.services.document_service import DocumentService
+from app.services.challan_service import ChallanService, MockOCRAdapter
+from app.services.maintenance_service import MaintenanceService
 
 # Configure structured logging
 logging.basicConfig(
@@ -72,17 +84,72 @@ def create_app(config_name=None):
     )
     summary_service = SummaryService(repo=transaction_repository)
 
-    # 4.5 Initialize Conversational Agent (Phase 3)
+    # 4.5 Initialize Phase 5 Subsystems (Storage, Repositories, Services)
+    storage_path = app.config.get("DOCUMENT_STORAGE_PATH", "uploads/documents")
+    max_upload_mb = app.config.get("DOCUMENT_MAX_UPLOAD_MB", 10)
+    storage_adapter = LocalStorageAdapter(base_directory=storage_path, max_size_mb=max_upload_mb)
+
+    document_repository = DocumentRepository(db=db)
+    challan_repository = ChallanRepository(db=db)
+    maintenance_repository = MaintenanceRepository(db=db)
+    reminder_repository = ReminderRepository(db=db)
+
+    reminder_notification_mode = app.config.get("REMINDER_NOTIFICATION_MODE", "mock").lower()
+    if reminder_notification_mode == "sms" and hasattr(auth_service, "sms_service") and auth_service.sms_service:
+        notification_adapter = SMSNotificationAdapter(sms_service=auth_service.sms_service)
+    else:
+        notification_adapter = MockNotificationAdapter()
+
+    reminder_service = ReminderService(
+        db=db,
+        reminder_repo=reminder_repository,
+        document_repo=document_repository,
+        notification_adapter=notification_adapter,
+        thresholds=app.config.get("DOCUMENT_EXPIRY_THRESHOLDS", [30, 15, 7, 1, 0])
+    )
+
+    document_service = DocumentService(
+        db=db,
+        document_repo=document_repository,
+        storage=storage_adapter,
+        reminder_repo=reminder_repository,
+        audit_service=audit_service
+    )
+
+    challan_service = ChallanService(
+        db=db,
+        challan_repo=challan_repository,
+        storage=storage_adapter,
+        ocr_adapter=MockOCRAdapter(),
+        audit_service=audit_service
+    )
+
+    maintenance_service = MaintenanceService(
+        db=db,
+        maintenance_repo=maintenance_repository,
+        storage=storage_adapter,
+        pending_action_service=pending_action_service,
+        ledger_service=ledger_service,
+        audit_service=audit_service
+    )
+
+    # Link maintenance service to pending action service for ledger synchronization
+    pending_action_service.set_maintenance_service(maintenance_service)
+
+    # 4.6 Initialize Conversational Agent (Phase 3 & Phase 5)
     from app.agent.service import AgentService
     agent_service = AgentService(
         db=db,
         pending_action_service=pending_action_service,
         ledger_service=ledger_service,
         summary_service=summary_service,
-        settlement_service=settlement_service
+        settlement_service=settlement_service,
+        document_service=document_service,
+        challan_service=challan_service,
+        maintenance_service=maintenance_service
     )
 
-    # 4.6 Initialize Voice Integration (Phase 4)
+    # 4.7 Initialize Voice Integration (Phase 4)
     from app.voice import (
         AudioValidator,
         AudioPreprocessor,
@@ -145,6 +212,17 @@ def create_app(config_name=None):
     app.extensions["audio_preprocessor"] = audio_preprocessor
     app.extensions["voice_service"] = voice_service
 
+    # Phase 5 Extensions
+    app.extensions["storage_adapter"] = storage_adapter
+    app.extensions["document_repository"] = document_repository
+    app.extensions["challan_repository"] = challan_repository
+    app.extensions["maintenance_repository"] = maintenance_repository
+    app.extensions["reminder_repository"] = reminder_repository
+    app.extensions["document_service"] = document_service
+    app.extensions["challan_service"] = challan_service
+    app.extensions["maintenance_service"] = maintenance_service
+    app.extensions["reminder_service"] = reminder_service
+
     # 5. Register Blueprints
     from app.routes.health_routes import health_bp
     from app.routes.auth_routes import auth_bp
@@ -155,6 +233,12 @@ def create_app(config_name=None):
     from app.routes.agent_routes import agent_bp
     from app.routes.voice_routes import voice_bp, speech_bp
 
+    # Phase 5 Blueprints
+    from app.routes.document_routes import document_bp
+    from app.routes.challan_routes import challan_bp
+    from app.routes.maintenance_routes import maintenance_bp
+    from app.routes.reminder_routes import reminder_bp
+
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(transaction_bp)
@@ -164,11 +248,15 @@ def create_app(config_name=None):
     app.register_blueprint(agent_bp)
     app.register_blueprint(voice_bp)
     app.register_blueprint(speech_bp)
+    app.register_blueprint(document_bp)
+    app.register_blueprint(challan_bp)
+    app.register_blueprint(maintenance_bp)
+    app.register_blueprint(reminder_bp)
 
     # 6. Centralized Error Handlers
     register_error_handlers(app)
 
-    logger.info("T2T DRIVE Flask application factory initialized successfully with Phase 4 Voice Integration (Prisma & Timbre).")
+    logger.info("T2T DRIVE Flask application factory initialized successfully with Phase 5 Document Management, Challan Assistance, and Vehicle Maintenance.")
     return app
 
 

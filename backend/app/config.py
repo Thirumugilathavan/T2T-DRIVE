@@ -64,6 +64,16 @@ class Config:
     VOICE_MAX_DURATION_SECONDS = int(os.getenv("VOICE_MAX_DURATION_SECONDS", "60"))
     VOICE_TEMP_DIRECTORY = os.getenv("VOICE_TEMP_DIRECTORY", "")
 
+    # Phase 5: Documents, Challans, Maintenance, and Reminders Configuration
+    DOCUMENT_STORAGE_MODE = os.getenv("DOCUMENT_STORAGE_MODE", "local")
+    DOCUMENT_STORAGE_PATH = os.getenv("DOCUMENT_STORAGE_PATH", str(BASE_DIR / "uploads" / "documents"))
+    DOCUMENT_MAX_UPLOAD_MB = int(os.getenv("DOCUMENT_MAX_UPLOAD_MB", "10"))
+    DOCUMENT_ALLOWED_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg"]
+    DOCUMENT_EXPIRY_THRESHOLDS = [30, 15, 7, 1, 0]
+    OCR_ENABLED = os.getenv("OCR_ENABLED", "1") == "1"
+    OCR_PROVIDER = os.getenv("OCR_PROVIDER", "mock")
+    REMINDER_NOTIFICATION_MODE = os.getenv("REMINDER_NOTIFICATION_MODE", "mock")
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
@@ -77,6 +87,7 @@ class TestingConfig(Config):
     SMS_PROVIDER_MODE = "mock"
     JWT_SECRET = "test-jwt-secret-only"
     OTP_HASH_SECRET = "test-otp-hash-secret-only"
+    DOCUMENT_STORAGE_PATH = str(BASE_DIR / "uploads" / "test_documents")
 
 
 class ProductionConfig(Config):

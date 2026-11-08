@@ -13,13 +13,21 @@
     API_BASE: "http://localhost:5000", // Flask backend base URL
     TIMEOUT_MS: 12000,
     ENDPOINTS: {
-      transcribe:        "/api/speech/transcribe",
-      agentMessage:      "/api/agent/message",
-      agentConfirm:      "/api/agent/confirm",
-      financeSummary:    "/api/finance/summary",
-      documents:         "/api/documents",
-      settlementCompare: "/api/settlement/compare",
-      speak:             "/api/speech/speak"
+      transcribe:          "/api/speech/transcribe",
+      agentMessage:        "/api/agent/message",
+      agentConfirm:        "/api/agent/confirm",
+      financeSummary:      "/api/finance/summary",
+      documents:           "/api/documents",
+      documentCompliance:  "/api/documents/compliance",
+      challans:            "/api/challans",
+      challanOCR:          "/api/challans/ocr-preview",
+      maintenance:         "/api/maintenance",
+      maintenanceUpcoming: "/api/maintenance/upcoming",
+      maintenanceSpending: "/api/maintenance/spending-summary",
+      reminders:           "/api/reminders",
+      remindersScan:       "/api/reminders/scan",
+      settlementCompare:   "/api/settlement/compare",
+      speak:               "/api/speech/speak"
     }
   };
 
@@ -177,6 +185,143 @@
   }
 
   /**
+   * GET /api/documents/compliance
+   */
+  async function documentCompliance(vehicleId) {
+    let url = window.T2T_CONFIG.API_BASE + window.T2T_CONFIG.ENDPOINTS.documentCompliance;
+    if (vehicleId) url += `?vehicle_id=${encodeURIComponent(vehicleId)}`;
+    return await fetchWithTimeout(url, { method: "GET" });
+  }
+
+  /**
+   * GET /api/challans
+   */
+  async function challansList(status, vehicleId) {
+    let url = window.T2T_CONFIG.API_BASE + window.T2T_CONFIG.ENDPOINTS.challans;
+    const params = [];
+    if (status) params.push(`status=${encodeURIComponent(status)}`);
+    if (vehicleId) params.push(`vehicle_id=${encodeURIComponent(vehicleId)}`);
+    if (params.length) url += `?${params.join("&")}`;
+    return await fetchWithTimeout(url, { method: "GET" });
+  }
+
+  /**
+   * POST /api/challans
+   */
+  async function challanAdd(data) {
+    const url = window.T2T_CONFIG.API_BASE + window.T2T_CONFIG.ENDPOINTS.challans;
+    return await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+  }
+
+  /**
+   * POST /api/challans/:id/pay
+   */
+  async function challanPay(challanId, paymentData) {
+    const url = `${window.T2T_CONFIG.API_BASE}${window.T2T_CONFIG.ENDPOINTS.challans}/${encodeURIComponent(challanId)}/pay`;
+    return await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(paymentData || {})
+    });
+  }
+
+  /**
+   * POST /api/challans/ocr-preview
+   */
+  async function challanPreviewOCR(file) {
+    const url = window.T2T_CONFIG.API_BASE + window.T2T_CONFIG.ENDPOINTS.challanOCR;
+    const formData = new FormData();
+    formData.append("file", file);
+    const reqHeaders = getAuthHeaders();
+    const res = await fetch(url, {
+      method: "POST",
+      headers: reqHeaders,
+      body: formData
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`OCR preview failed (${res.status}): ${text}`);
+    }
+    const json = await res.json();
+    return (json && json.data !== undefined) ? json.data : json;
+  }
+
+  /**
+   * GET /api/maintenance
+   */
+  async function maintenanceList(vehicleId, limit = 50) {
+    let url = `${window.T2T_CONFIG.API_BASE}${window.T2T_CONFIG.ENDPOINTS.maintenance}?limit=${limit}`;
+    if (vehicleId) url += `&vehicle_id=${encodeURIComponent(vehicleId)}`;
+    return await fetchWithTimeout(url, { method: "GET" });
+  }
+
+  /**
+   * POST /api/maintenance
+   */
+  async function maintenanceAdd(data) {
+    const url = window.T2T_CONFIG.API_BASE + window.T2T_CONFIG.ENDPOINTS.maintenance;
+    return await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+  }
+
+  /**
+   * GET /api/maintenance/upcoming
+   */
+  async function maintenanceUpcoming(vehicleId) {
+    let url = window.T2T_CONFIG.API_BASE + window.T2T_CONFIG.ENDPOINTS.maintenanceUpcoming;
+    if (vehicleId) url += `?vehicle_id=${encodeURIComponent(vehicleId)}`;
+    return await fetchWithTimeout(url, { method: "GET" });
+  }
+
+  /**
+   * GET /api/maintenance/spending-summary
+   */
+  async function maintenanceSpendingSummary(startDate, endDate) {
+    let url = window.T2T_CONFIG.API_BASE + window.T2T_CONFIG.ENDPOINTS.maintenanceSpending;
+    const params = [];
+    if (startDate) params.push(`start_date=${encodeURIComponent(startDate)}`);
+    if (endDate) params.push(`end_date=${encodeURIComponent(endDate)}`);
+    if (params.length) url += `?${params.join("&")}`;
+    return await fetchWithTimeout(url, { method: "GET" });
+  }
+
+  /**
+   * GET /api/reminders
+   */
+  async function remindersList(status) {
+    let url = window.T2T_CONFIG.API_BASE + window.T2T_CONFIG.ENDPOINTS.reminders;
+    if (status) url += `?status=${encodeURIComponent(status)}`;
+    return await fetchWithTimeout(url, { method: "GET" });
+  }
+
+  /**
+   * POST /api/reminders/scan
+   */
+  async function remindersScan(refDate) {
+    const url = window.T2T_CONFIG.API_BASE + window.T2T_CONFIG.ENDPOINTS.remindersScan;
+    return await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reference_date: refDate })
+    });
+  }
+
+  /**
+   * POST /api/reminders/:id/acknowledge
+   */
+  async function reminderAcknowledge(reminderId) {
+    const url = `${window.T2T_CONFIG.API_BASE}${window.T2T_CONFIG.ENDPOINTS.reminders}/${encodeURIComponent(reminderId)}/acknowledge`;
+    return await fetchWithTimeout(url, { method: "POST" });
+  }
+
+  /**
    * POST /api/settlement/compare
    * @param {Object} data { driver_amount, owner_amount }
    */
@@ -219,6 +364,18 @@
     getSummary,
     documentsList,
     documentAdd,
+    documentCompliance,
+    challansList,
+    challanAdd,
+    challanPay,
+    challanPreviewOCR,
+    maintenanceList,
+    maintenanceAdd,
+    maintenanceUpcoming,
+    maintenanceSpendingSummary,
+    remindersList,
+    remindersScan,
+    reminderAcknowledge,
     settlementCompare,
     speak
   };

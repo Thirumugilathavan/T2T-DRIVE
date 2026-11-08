@@ -71,6 +71,10 @@ class PendingActionService:
         """Allows circular reference resolution during app factory initialization."""
         self.settlement = settlement_service
 
+    def set_maintenance_service(self, maintenance_service):
+        """Allows circular reference resolution for maintenance ledger linkage."""
+        self.maintenance_service = maintenance_service
+
     def propose_action(
         self,
         driver_id: str,
@@ -249,6 +253,20 @@ class PendingActionService:
                     transaction_date=data.get("transaction_date", today_ist()),
                     source=data.get("source", "MANUAL")
                 )
+
+                # Link maintenance record if this is a maintenance expense
+                if action_type == PendingActionType.ADD_EXPENSE.value:
+                    maint_svc = getattr(self, "maintenance_service", None)
+                    if maint_svc and (data.get("category") == "MAINTENANCE" or data.get("maintenance_details")):
+                        try:
+                            maint_svc.link_maintenance_to_transaction(
+                                driver_id=driver_id,
+                                transaction_id=execution_result.get("transaction_id", ""),
+                                proposed_maintenance_data=data,
+                                cost=Decimal(str(data["amount"]))
+                            )
+                        except Exception as m_err:
+                            logger.error("Failed to link maintenance record to transaction: %s", m_err)
 
             elif action_type == PendingActionType.CREATE_REVERSAL.value:
                 execution_result = self.ledger.create_reversal(

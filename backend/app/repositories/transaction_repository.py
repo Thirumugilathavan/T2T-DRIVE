@@ -99,6 +99,10 @@ class TransactionRepository:
 
         return [from_mongo_doc(doc) for doc in cursor if doc]
 
+    def get_transactions_for_driver(self, driver_id: str) -> List[Dict[str, Any]]:
+        """Convenience helper to retrieve all transactions for a driver."""
+        return self.find_transactions(driver_id=driver_id, limit=1000)
+
     def count_transactions(
         self,
         driver_id: str,

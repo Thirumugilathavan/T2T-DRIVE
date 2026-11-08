@@ -1,7 +1,8 @@
 """
 Multilingual Natural Language Understanding (NLU) Module for T2T DRIVE.
 Supports Tamil, Tanglish (Romanized Tamil), and English for auto-rickshaw and cab drivers.
-Extracts intents, entities (amounts, categories, vehicles, dates), and identifies missing slots.
+Extracts intents, entities (amounts, categories, vehicles, dates, doc types), and identifies missing slots.
+Includes Phase 5 support for Document Management, Challan Assistance, and Vehicle Maintenance.
 """
 
 import re
@@ -14,6 +15,7 @@ from typing import Dict, Any, List, Optional, Tuple
 # ============================================================================
 
 class AgentIntent:
+    # Core Financial Intents
     RECORD_EXPENSE = "RECORD_EXPENSE"
     RECORD_INCOME = "RECORD_INCOME"
     RECORD_OWNER_PAYMENT = "RECORD_OWNER_PAYMENT"
@@ -23,6 +25,25 @@ class AgentIntent:
     CANCEL_ACTION = "CANCEL_ACTION"
     HELP = "HELP"
     UNKNOWN = "UNKNOWN"
+
+    # Phase 5 Document Intents
+    ADD_DOCUMENT = "ADD_DOCUMENT"
+    LIST_DOCUMENTS = "LIST_DOCUMENTS"
+    CHECK_DOCUMENT_EXPIRY = "CHECK_DOCUMENT_EXPIRY"
+    DOCUMENT_DETAILS = "DOCUMENT_DETAILS"
+
+    # Phase 5 Challan Intents
+    ADD_CHALLAN = "ADD_CHALLAN"
+    LIST_CHALLANS = "LIST_CHALLANS"
+    CHECK_UNPAID_CHALLANS = "CHECK_UNPAID_CHALLANS"
+    UPDATE_CHALLAN_STATUS = "UPDATE_CHALLAN_STATUS"
+
+    # Phase 5 Maintenance Intents
+    ADD_MAINTENANCE = "ADD_MAINTENANCE"
+    LIST_MAINTENANCE = "LIST_MAINTENANCE"
+    CHECK_UPCOMING_SERVICE = "CHECK_UPCOMING_SERVICE"
+    CHECK_OVERDUE_SERVICE = "CHECK_OVERDUE_SERVICE"
+    MAINTENANCE_SUMMARY = "MAINTENANCE_SUMMARY"
 
 
 # ============================================================================
@@ -63,8 +84,6 @@ def parse_numeric_amount(text: str) -> Optional[Decimal]:
     Extracts monetary amount from text supporting digits (₹450, 450.00, 450rs, 450 roobai)
     or Tamil/Tanglish number words.
     """
-    # 1. Regex search for standard numbers (e.g. ₹500, 500 rs, 450.50, 1200)
-    # Avoid vehicle numbers like TN-01-AB-1234 by looking for currency indicators or standalone numbers
     digit_patterns = [
         r'(?:(?:rs|inr|₹|ரூ)\.?\s*)(\d+(?:\.\d{1,2})?)',  # ₹500, rs 500
         r'(\d+(?:\.\d{1,2})?)\s*(?:rs|inr|ruba|rubai|rooba|roobai|rupees|ரூபாய்|ரூ)',  # 500 rs, 500 ruba
@@ -83,10 +102,8 @@ def parse_numeric_amount(text: str) -> Optional[Decimal]:
             except (InvalidOperation, ValueError):
                 continue
                 
-    # 2. Check for Tamil number words (sorted longest to shortest to prevent partial matches like 'nooru' in 'ainooru')
     sorted_words = sorted(TAMIL_NUMBER_WORDS.items(), key=lambda x: len(x[0]), reverse=True)
     for word, amount in sorted_words:
-        # Match as whole word or with standard Tamil/Tanglish suffixes
         pattern = r'(?:^|\b|\s)' + re.escape(word) + r'(?:$|\b|\s|aachu|potten|kuduthen|rubai|ruba|rs)'
         if re.search(pattern, clean_text) or word == clean_text:
             return Decimal(str(amount))
@@ -108,7 +125,8 @@ EXPENSE_CATEGORY_KEYWORDS = {
     ],
     "MAINTENANCE": [
         "puncture", "puncher", "repair", "service", "air", "tyre", "tire", "oil",
-        "brake", "clutch", "grease", "பழுது", "பஞ்சர்", "சர்வீஸ்", "டயர்", "ஆயில்"
+        "brake", "clutch", "grease", "maintenance", "servicing", "பழுது", "பஞ்சர்",
+        "சர்வீஸ்", "டயர்", "ஆயில்", "பராமரிப்பு"
     ],
     "TOLL": [
         "toll", "fastag", "tollgate", "டோல்", "டோல்கேட்"
@@ -142,7 +160,6 @@ OWNER_PAYMENT_KEYWORDS = [
 
 def detect_language(text: str) -> str:
     """Detects whether text is Tamil (Tamil script), Tanglish (Tamil in Latin script), or English."""
-    # Check for Tamil script Unicode range: 0B80 - 0BFF
     if any('\u0B80' <= char <= '\u0BFF' for char in text):
         return "tamil"
         
@@ -150,7 +167,7 @@ def detect_language(text: str) -> str:
     tanglish_markers = [
         "potten", "aachu", "vandhuchu", "kuduthen", "anna", "thambi", "inniku",
         "nethu", "naalaiki", "evvalavu", "sollu", "solra", "aama", "sari", "vendaam",
-        "illa", "savari", "rubai", "ruba", "vaadagai", "pannu", "sey", "kanaku"
+        "illa", "savari", "rubai", "ruba", "vaadagai", "pannu", "sey", "kanaku", "eppo"
     ]
     if any(marker in lower for marker in tanglish_markers):
         return "tanglish"
@@ -158,42 +175,32 @@ def detect_language(text: str) -> str:
     return "english"
 
 
-def extract_category(text: str, intent: str) -> Tuple[str, Optional[str]]:
-    """
-    Extracts category and specific matched keyword.
-    Returns (category, keyword).
-    """
-    lower = text.lower()
-    
-    if intent == AgentIntent.RECORD_EXPENSE:
-        for cat, keywords in EXPENSE_CATEGORY_KEYWORDS.items():
-            for kw in keywords:
-                if re.search(r'\b' + re.escape(kw) + r'\b', lower) or kw in lower:
-                    return cat, kw
-        return "OTHER_EXPENSE", None
-        
-    elif intent == AgentIntent.RECORD_INCOME:
-        for cat, keywords in INCOME_CATEGORY_KEYWORDS.items():
-            for kw in keywords:
-                if re.search(r'\b' + re.escape(kw) + r'\b', lower) or kw in lower:
-                    return cat, kw
-        return "FARE", "savari"
-        
-    elif intent == AgentIntent.RECORD_OWNER_PAYMENT:
-        return "OWNER_RENT", "owner rent"
-        
-    return "OTHER", None
-
-
-def extract_vehicle_id(text: str, default_vehicle: str = "DEFAULT_VEHICLE") -> str:
+def extract_vehicle_id(text: str, default_vehicle: Optional[str] = None) -> Optional[str]:
     """Extracts vehicle registration number (e.g., TN-01-AB-1234 or TN 01 AB 1234) or returns default."""
     pattern = r'\b([A-Z]{2}[ -]?[0-9]{1,2}[ -]?[A-Z]{1,3}[ -]?[0-9]{1,4})\b'
     match = re.search(pattern, text.upper())
     if match:
-        # Standardize format: TN-01-AB-1234
         raw = match.group(1).replace(" ", "-")
         return raw
     return default_vehicle
+
+
+def extract_document_type(text: str) -> str:
+    """Extracts document type from utterance (e.g. INSURANCE, PUC, RC)."""
+    lower = text.lower()
+    if "puc" in lower or "pollution" in lower or "புகை" in lower:
+        return "PUC"
+    if "rc" in lower or "registration" in lower or "பதிவு" in lower:
+        return "RC"
+    if "fitness" in lower or "fc" in lower or "தகுதி" in lower:
+        return "FITNESS"
+    if "licence" in lower or "license" in lower or "dl" in lower or "ஓட்டுநர் உரிமம்" in lower:
+        return "DRIVING_LICENCE"
+    if "permit" in lower or "பர்மிட்" in lower:
+        return "PERMIT"
+    if "tax" in lower or "வரி" in lower:
+        return "TAX_RECEIPT"
+    return "INSURANCE"
 
 
 # ============================================================================
@@ -228,6 +235,37 @@ HELP_TERMS = [
     "udhavi", "enna panna mudiyum", "உதவி", "வழிகாட்டல்"
 ]
 
+# Phase 5 Keyword Sets
+DOCUMENT_EXPIRY_TERMS = [
+    "expire", "expiry", "eppo expire", "eppo mudiyum", "eppothu expire",
+    "எப்போது முடியும்", "எப்போ முடியும்", "காலாவதி", "முடிவடையும்",
+    "when does my insurance expire", "when does my puc expire", "when does my rc expire",
+    "when does my licence expire", "check document expiry"
+]
+
+DOCUMENT_LIST_TERMS = [
+    "show my vehicle documents", "show documents", "documents list",
+    "enna documents irukku", "document list", "ஆவணங்கள் காட்டு", "டாக்குமெண்ட்ஸ் காட்டு",
+    "show my documents", "list documents"
+]
+
+CHALLAN_UNPAID_TERMS = [
+    "unpaid challan", "unpaid challans", "challan irukka", "fine irukka",
+    "traffic fine", "show my unpaid challans", "check unpaid challans",
+    "டிராஃபிக் ஃபைன்", "சலான் இருக்கா", "அபராதம் இருக்கா", "unpaid fines", "challan check"
+]
+
+CHALLAN_LIST_TERMS = [
+    "show challans", "list challans", "show all challans", "challan list", "எல்லா சலான்களும்"
+]
+
+MAINTENANCE_SERVICE_TERMS = [
+    "service eppo", "adutha service eppo", "service eppothu", "when is my next service",
+    "next service due", "when is my service", "என் வண்டிக்கு சர்வீஸ் எப்போது",
+    "அடுத்த சர்வீஸ் எப்போது", "service schedule", "next service due date", "vandi service eppo",
+    "en auto ku service eppo"
+]
+
 
 class MultilingualNLU:
     """
@@ -243,6 +281,9 @@ class MultilingualNLU:
         clean_text = text.strip()
         lower = clean_text.lower()
         language = detect_language(clean_text)
+        explicit_vehicle = extract_vehicle_id(clean_text, None)
+        effective_write_vehicle = explicit_vehicle or default_vehicle or "DEFAULT_VEHICLE"
+        vehicle_id = effective_write_vehicle
         
         # 1. Check for Confirmation / Cancellation first if there is a pending action awaiting confirmation
         if has_active_pending_action:
@@ -275,29 +316,82 @@ class MultilingualNLU:
                 "missing_slots": []
             }
 
-        # 3. Settlement Intent
+        # 3. Document Expiry Queries (Phase 5)
+        if any(term in lower for term in DOCUMENT_EXPIRY_TERMS):
+            doc_type = extract_document_type(clean_text)
+            return {
+                "intent": AgentIntent.CHECK_DOCUMENT_EXPIRY,
+                "confidence": 0.94,
+                "language": language,
+                "slots": {
+                    "document_type": doc_type,
+                    "vehicle_id": explicit_vehicle
+                },
+                "missing_slots": []
+            }
+
+        # 4. List Documents (Phase 5)
+        if any(term in lower for term in DOCUMENT_LIST_TERMS):
+            return {
+                "intent": AgentIntent.LIST_DOCUMENTS,
+                "confidence": 0.92,
+                "language": language,
+                "slots": {"vehicle_id": explicit_vehicle},
+                "missing_slots": []
+            }
+
+        # 5. Check Unpaid Challans (Phase 5)
+        if any(term in lower for term in CHALLAN_UNPAID_TERMS):
+            return {
+                "intent": AgentIntent.CHECK_UNPAID_CHALLANS,
+                "confidence": 0.94,
+                "language": language,
+                "slots": {"vehicle_id": explicit_vehicle},
+                "missing_slots": []
+            }
+
+        # 6. List Challans (Phase 5)
+        if any(term in lower for term in CHALLAN_LIST_TERMS):
+            return {
+                "intent": AgentIntent.LIST_CHALLANS,
+                "confidence": 0.90,
+                "language": language,
+                "slots": {"vehicle_id": explicit_vehicle},
+                "missing_slots": []
+            }
+
+        # 7. Check Upcoming Service / Maintenance Schedule (Phase 5)
+        if any(term in lower for term in MAINTENANCE_SERVICE_TERMS):
+            return {
+                "intent": AgentIntent.CHECK_UPCOMING_SERVICE,
+                "confidence": 0.94,
+                "language": language,
+                "slots": {"vehicle_id": explicit_vehicle},
+                "missing_slots": []
+            }
+
+        # 8. Settlement Intent
         if any(term in lower for term in SETTLEMENT_TERMS):
             return {
                 "intent": AgentIntent.CALCULATE_SETTLEMENT,
                 "confidence": 0.92,
                 "language": language,
-                "slots": {"vehicle_id": extract_vehicle_id(clean_text, default_vehicle)},
+                "slots": {"vehicle_id": effective_write_vehicle},
                 "missing_slots": []
             }
 
-        # 4. Summary Intent
+        # 9. Summary Intent
         if any(term in lower for term in SUMMARY_TERMS):
             return {
                 "intent": AgentIntent.GET_SUMMARY,
                 "confidence": 0.92,
                 "language": language,
-                "slots": {"vehicle_id": extract_vehicle_id(clean_text, default_vehicle)},
+                "slots": {"vehicle_id": vehicle_id},
                 "missing_slots": []
             }
 
-        # 5. Financial Transaction Intents
+        # 10. Financial Transaction & Maintenance Expense Intents
         amount = parse_numeric_amount(clean_text)
-        vehicle_id = extract_vehicle_id(clean_text, default_vehicle)
         
         # Check Owner Payment
         is_owner = any(term in lower for term in OWNER_PAYMENT_KEYWORDS)
@@ -318,21 +412,18 @@ class MultilingualNLU:
             }
 
         # Check Expense vs Income
-        # Look for expense category keywords
         matched_expense_cat = None
         for cat, kws in EXPENSE_CATEGORY_KEYWORDS.items():
             if any(kw in lower for kw in kws):
                 matched_expense_cat = cat
                 break
                 
-        # Look for income category keywords
         matched_income_cat = None
         for cat, kws in INCOME_CATEGORY_KEYWORDS.items():
             if any(kw in lower for kw in kws):
                 matched_income_cat = cat
                 break
 
-        # Check action verbs
         expense_verbs = ["potten", "potan", "selavu", "spent", "kuduthen", "kattinen", "போட்டேன்", "செலவு", "கட்டினேன்"]
         income_verbs = [
             "vandhuchu", "varumanam", "earned", "got", "collection", "sambadhichen",
@@ -351,8 +442,11 @@ class MultilingualNLU:
                 "notes": clean_text
             }
             missing = ["amount"] if amount is None else []
+            
+            # If specifically maintenance category, also set maintenance intent alias
+            intent = AgentIntent.RECORD_EXPENSE
             return {
-                "intent": AgentIntent.RECORD_EXPENSE,
+                "intent": intent,
                 "confidence": 0.92 if amount else 0.75,
                 "language": language,
                 "slots": slots,

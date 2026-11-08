@@ -29,6 +29,7 @@ def require_auth(f):
             g.session_id = payload.get("session_id")
             g.jti = payload.get("jti")
             g.token_exp = payload.get("exp")
+            request.driver_id = g.driver_id
 
             if not g.driver_id:
                 return error_response(
@@ -62,3 +63,7 @@ def require_auth(f):
         return f(*args, **kwargs)
 
     return decorated_function
+
+
+# Compatibility alias
+token_required = require_auth

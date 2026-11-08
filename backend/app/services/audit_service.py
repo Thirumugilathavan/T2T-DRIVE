@@ -23,23 +23,26 @@ class AuditService:
     def log_event(
         self,
         driver_id: str,
-        event_type: str,
-        resource_type: str,
-        resource_id: str,
+        event_type: Optional[str] = None,
+        resource_type: str = "general",
+        resource_id: str = "none",
         actor: str = "DRIVER",
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        **kwargs
     ) -> str:
         """
         Appends an audit log entry.
         Never stores passwords, tokens, OTPs, or cryptographic keys.
         """
         event_id = f"EVT_{secrets.token_hex(8)}"
-        clean_metadata = self._sanitize_metadata(metadata or {})
+        eff_event_type = event_type or kwargs.get("action") or "UNKNOWN_EVENT"
+        eff_metadata = metadata if metadata is not None else kwargs.get("details", {})
+        clean_metadata = self._sanitize_metadata(eff_metadata)
 
         doc = {
             "event_id": event_id,
             "driver_id": driver_id,
-            "event_type": event_type,
+            "event_type": eff_event_type,
             "resource_type": resource_type,
             "resource_id": resource_id,
             "timestamp": now_utc(),

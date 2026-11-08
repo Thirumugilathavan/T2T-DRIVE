@@ -60,16 +60,31 @@ def ensure_indexes(db):
         )
         db.settlements.create_index([("driver_id", ASCENDING), ("settlement_date", DESCENDING)])
 
-        # 8. documents Collection
+        # 8. documents & vehicle_documents Collections
         db.documents.create_index([("driver_id", ASCENDING), ("document_type", ASCENDING), ("vehicle_id", ASCENDING)], unique=True)
         db.documents.create_index([("expiry_date", ASCENDING)])
+        db.vehicle_documents.create_index([("document_id", ASCENDING)], unique=True)
+        db.vehicle_documents.create_index([("driver_id", ASCENDING), ("is_active", ASCENDING)])
+        db.vehicle_documents.create_index([("driver_id", ASCENDING), ("vehicle_id", ASCENDING)])
+        db.vehicle_documents.create_index([("expiry_date", ASCENDING)])
 
-        # 9. reminders Collection
+        # 9. reminders & vehicle_reminders Collections
         db.reminders.create_index([("driver_id", ASCENDING), ("status", ASCENDING), ("due_date", ASCENDING)])
+        db.vehicle_reminders.create_index([("reminder_id", ASCENDING)], unique=True)
+        db.vehicle_reminders.create_index([("idempotency_key", ASCENDING)], unique=True)
+        db.vehicle_reminders.create_index([("driver_id", ASCENDING), ("status", ASCENDING), ("due_date", ASCENDING)])
 
         # 10. maintenance_records Collection
+        db.maintenance_records.create_index([("maintenance_id", ASCENDING)], unique=True)
         db.maintenance_records.create_index([("vehicle_id", ASCENDING), ("service_date", DESCENDING)])
         db.maintenance_records.create_index([("driver_id", ASCENDING), ("service_date", DESCENDING)])
+        db.maintenance_records.create_index([("financial_transaction_id", ASCENDING)], sparse=True)
+
+        # 10.5. challans Collection
+        db.challans.create_index([("challan_id", ASCENDING)], unique=True)
+        db.challans.create_index([("driver_id", ASCENDING), ("challan_date", DESCENDING)])
+        db.challans.create_index([("driver_id", ASCENDING), ("payment_status", ASCENDING)])
+        db.challans.create_index([("challan_number", ASCENDING)])
 
         # 11. conversation_sessions & messages
         db.conversation_sessions.create_index([("session_id", ASCENDING)], unique=True)

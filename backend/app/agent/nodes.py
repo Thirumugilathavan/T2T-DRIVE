@@ -1,7 +1,7 @@
 """
 LangGraph Node Handlers for T2T DRIVE Conversational Agent.
 Implements the core state transitions, pending action lifecycle, slot-filling,
-and summary/settlement retrieval.
+summary/settlement retrieval, and Phase 5 document/challan/maintenance assistance.
 """
 
 import logging
@@ -19,7 +19,11 @@ from app.agent.prompts import (
     prompt_daily_summary,
     prompt_settlement_status,
     prompt_help,
-    prompt_unknown
+    prompt_unknown,
+    prompt_document_expiry,
+    prompt_documents_list,
+    prompt_unpaid_challans,
+    prompt_upcoming_service
 )
 from app.models.financial import PendingActionType
 from app.utils.dates import today_ist
@@ -37,11 +41,17 @@ class AgentNodes:
         pending_action_service=None,
         summary_service=None,
         settlement_service=None,
+        document_service=None,
+        challan_service=None,
+        maintenance_service=None,
         db=None
     ):
         self.pending_svc = pending_action_service
         self.summary_svc = summary_service
         self.settlement_svc = settlement_service
+        self.document_svc = document_service
+        self.challan_svc = challan_service
+        self.maintenance_svc = maintenance_service
         self.db = db
 
     def nlu_node(self, state: AgentState) -> Dict[str, Any]:
@@ -68,7 +78,6 @@ class AgentNodes:
         # Check for multi-turn slot merging if the agent was previously awaiting a slot (e.g. amount)
         existing_slots = dict(state.get("slots", {}))
         if (state.get("next_step") == "AWAITING_SLOT" or intent == "PROVIDE_AMOUNT") and "amount" in new_slots and new_slots["amount"] is not None:
-            # Driver just supplied the missing amount!
             existing_slots["amount"] = new_slots["amount"]
             if state.get("intent") and state.get("intent") != "PROVIDE_AMOUNT":
                 intent = state["intent"]
@@ -81,6 +90,14 @@ class AgentNodes:
             for k, v in new_slots.items():
                 if v is not None:
                     merged_slots[k] = v
+                elif k == "vehicle_id" and intent in (
+                    AgentIntent.CHECK_DOCUMENT_EXPIRY,
+                    AgentIntent.LIST_DOCUMENTS,
+                    AgentIntent.CHECK_UNPAID_CHALLANS,
+                    AgentIntent.LIST_CHALLANS,
+                    AgentIntent.CHECK_UPCOMING_SERVICE
+                ):
+                    merged_slots["vehicle_id"] = None
 
         return {
             "intent": intent,
@@ -120,6 +137,7 @@ class AgentNodes:
             AgentIntent.RECORD_EXPENSE: PendingActionType.ADD_EXPENSE,
             AgentIntent.RECORD_INCOME: PendingActionType.ADD_INCOME,
             AgentIntent.RECORD_OWNER_PAYMENT: PendingActionType.ADD_OWNER_PAYMENT,
+            AgentIntent.ADD_MAINTENANCE: PendingActionType.ADD_EXPENSE,
         }
         action_type = action_type_map.get(intent)
         if not action_type:
@@ -143,6 +161,15 @@ class AgentNodes:
             "source": "VOICE_AGENT"
         }
 
+        # If maintenance expense, attach metadata for ledger linkage
+        if category == "MAINTENANCE":
+            proposed_data["maintenance_details"] = {
+                "maintenance_category": "GENERAL_SERVICING",
+                "description": slots.get("notes", state.get("user_message", "Vehicle Maintenance")),
+                "service_date": today_ist(),
+                "service_provider": "Local Garage"
+            }
+
         # Generate unique idempotency key for proposal
         prop_idempotency_key = f"AGENT_PROP_{driver_id}_{secrets.token_hex(6)}"
 
@@ -163,7 +190,6 @@ class AgentNodes:
                     "next_step": "IDLE"
                 }
         else:
-            # Fallback mock for testing without service
             pending_doc = {
                 "pending_action_id": f"PEND_MOCK_{secrets.token_hex(6)}",
                 "status": "PENDING",
@@ -171,7 +197,6 @@ class AgentNodes:
                 "action_type": action_type.value
             }
 
-        # Ensure pure JSON types for checkpointer serialization
         serializable_pending = dict(pending_doc)
         if "action_type" in serializable_pending and hasattr(serializable_pending["action_type"], "value"):
             serializable_pending["action_type"] = serializable_pending["action_type"].value
@@ -196,7 +221,7 @@ class AgentNodes:
     def action_execution_node(self, state: AgentState) -> Dict[str, Any]:
         """
         Executes the confirmed pending action atomically.
-        Uses idempotency key EXEC_{pending_action_id}.
+        Uses idempotency key AGENT_EXEC_{pending_action_id}.
         """
         driver_id = state.get("driver_id", "")
         active_action = state.get("active_pending_action", {})
@@ -278,9 +303,7 @@ class AgentNodes:
         }
 
     def query_summary_node(self, state: AgentState) -> Dict[str, Any]:
-        """
-        Retrieves daily summary from SummaryService.
-        """
+        """Retrieves daily summary from SummaryService."""
         driver_id = state.get("driver_id", "")
         language = state.get("language", "tanglish")
 
@@ -312,9 +335,7 @@ class AgentNodes:
         }
 
     def query_settlement_node(self, state: AgentState) -> Dict[str, Any]:
-        """
-        Retrieves settlement status from SettlementService or database.
-        """
+        """Retrieves settlement status from SettlementService or database."""
         driver_id = state.get("driver_id", "")
         language = state.get("language", "tanglish")
 
@@ -340,6 +361,138 @@ class AgentNodes:
             owner_payment=paid,
             expenses_borne=exp,
             balance_due=bal,
+            language=language
+        )
+
+        return {
+            "response_message": prompt_data["text"],
+            "response_voice_text": prompt_data["voice"],
+            "next_step": "IDLE"
+        }
+
+    # ========================================================================
+    # PHASE 5 NODES: DOCUMENTS, CHALLANS, MAINTENANCE
+    # ========================================================================
+
+    def query_document_expiry_node(self, state: AgentState) -> Dict[str, Any]:
+        """Queries DocumentService for expiry date of specified document."""
+        driver_id = state.get("driver_id", "")
+        language = state.get("language", "tanglish")
+        slots = state.get("slots", {})
+        doc_type = slots.get("document_type", "INSURANCE")
+        vehicle_id = slots.get("vehicle_id")
+        if vehicle_id == "DEFAULT_VEHICLE":
+            vehicle_id = None
+
+        exp_date = None
+        days_left = None
+
+        if self.document_svc:
+            try:
+                docs = self.document_svc.list_documents(driver_id=driver_id, vehicle_id=vehicle_id, active_only=True)
+                # Look for matching document
+                for d in docs:
+                    cur_type = str(d.get("document_type", "")).upper()
+                    if cur_type in (doc_type.upper(), f"DOCUMENTTYPE.{doc_type.upper()}"):
+                        exp_date = d.get("expiry_date")
+                        days_left = d.get("days_left")
+                        break
+            except Exception as e:
+                logger.error("Failed to query document expiry: %s", e)
+
+        prompt_data = prompt_document_expiry(
+            doc_type=doc_type,
+            expiry_date=exp_date,
+            days_left=days_left,
+            language=language
+        )
+
+        return {
+            "response_message": prompt_data["text"],
+            "response_voice_text": prompt_data["voice"],
+            "next_step": "IDLE"
+        }
+
+    def query_documents_list_node(self, state: AgentState) -> Dict[str, Any]:
+        """Queries active documents in driver's vault."""
+        driver_id = state.get("driver_id", "")
+        language = state.get("language", "tanglish")
+        vehicle_id = state.get("slots", {}).get("vehicle_id")
+        if vehicle_id == "DEFAULT_VEHICLE":
+            vehicle_id = None
+
+        docs = []
+        if self.document_svc:
+            try:
+                docs = self.document_svc.list_documents(driver_id=driver_id, vehicle_id=vehicle_id, active_only=True)
+            except Exception as e:
+                logger.error("Failed to list documents: %s", e)
+
+        prompt_data = prompt_documents_list(count=len(docs), documents=docs, language=language)
+
+        return {
+            "response_message": prompt_data["text"],
+            "response_voice_text": prompt_data["voice"],
+            "next_step": "IDLE"
+        }
+
+    def query_unpaid_challans_node(self, state: AgentState) -> Dict[str, Any]:
+        """Queries unpaid traffic challans."""
+        driver_id = state.get("driver_id", "")
+        language = state.get("language", "tanglish")
+        vehicle_id = state.get("slots", {}).get("vehicle_id")
+        if vehicle_id == "DEFAULT_VEHICLE":
+            vehicle_id = None
+
+        unpaid = []
+        total_fine = Decimal("0.00")
+
+        if self.challan_svc:
+            try:
+                unpaid = self.challan_svc.list_challans(driver_id=driver_id, vehicle_id=vehicle_id, status="UNPAID")
+                total_fine = sum(Decimal(str(c.get("fine_amount", 0))) for c in unpaid)
+            except Exception as e:
+                logger.error("Failed to query unpaid challans: %s", e)
+
+        prompt_data = prompt_unpaid_challans(
+            count=len(unpaid),
+            total_fine=total_fine,
+            language=language
+        )
+
+        return {
+            "response_message": prompt_data["text"],
+            "response_voice_text": prompt_data["voice"],
+            "next_step": "IDLE"
+        }
+
+    def query_upcoming_service_node(self, state: AgentState) -> Dict[str, Any]:
+        """Queries scheduled future vehicle maintenance."""
+        driver_id = state.get("driver_id", "")
+        language = state.get("language", "tanglish")
+        vehicle_id = state.get("slots", {}).get("vehicle_id")
+        if vehicle_id == "DEFAULT_VEHICLE":
+            vehicle_id = None
+
+        service_type = None
+        next_date = None
+        next_km = None
+
+        if self.maintenance_svc:
+            try:
+                upcoming = self.maintenance_svc.get_upcoming_services(driver_id=driver_id, vehicle_id=vehicle_id)
+                if upcoming:
+                    first = upcoming[0]
+                    service_type = first.get("category_label") or first.get("description")
+                    next_date = first.get("next_service_date")
+                    next_km = first.get("next_service_odometer")
+            except Exception as e:
+                logger.error("Failed to query upcoming maintenance: %s", e)
+
+        prompt_data = prompt_upcoming_service(
+            service_type=service_type,
+            next_date=next_date,
+            next_km=next_km,
             language=language
         )
 
