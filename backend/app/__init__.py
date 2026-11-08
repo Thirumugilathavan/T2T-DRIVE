@@ -70,6 +70,14 @@ def create_app(config_name=None):
         audit_service=audit_service
     )
     summary_service = SummaryService(repo=transaction_repository)
+    from app.agent.service import AgentService
+    agent_service = AgentService(
+        db=db,
+        pending_action_service=pending_action_service,
+        ledger_service=ledger_service,
+        summary_service=summary_service,
+        settlement_service=settlement_service
+    )
 
     # Store in app extensions for dependency injection in routes
     app.extensions["db_manager"] = db_manager
@@ -82,6 +90,7 @@ def create_app(config_name=None):
     app.extensions["settlement_service"] = settlement_service
     app.extensions["pending_action_service"] = pending_action_service
     app.extensions["summary_service"] = summary_service
+    app.extensions["agent_service"] = agent_service
 
     # 5. Register Blueprints
     from app.routes.health_routes import health_bp
@@ -90,6 +99,7 @@ def create_app(config_name=None):
     from app.routes.pending_action_routes import pending_action_bp
     from app.routes.finance_routes import finance_bp
     from app.routes.settlement_routes import settlement_bp
+    from app.routes.agent_routes import agent_bp
 
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp)
@@ -97,11 +107,12 @@ def create_app(config_name=None):
     app.register_blueprint(pending_action_bp)
     app.register_blueprint(finance_bp)
     app.register_blueprint(settlement_bp)
+    app.register_blueprint(agent_bp)
 
     # 6. Centralized Error Handlers
     register_error_handlers(app)
 
-    logger.info("T2T DRIVE Flask application factory initialized successfully with Phase 2 Financial Engine.")
+    logger.info("T2T DRIVE Flask application factory initialized successfully with Phase 3 LangGraph Conversational Agent.")
     return app
 
 
