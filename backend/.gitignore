@@ -1,0 +1,34 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+env/
+venv/
+.venv/
+ENV/
+
+# Environment Variables & Secrets
+.env
+.env.local
+*.pem
+*.key
+
+# Temporary & Uploaded Audio
+/tmp/
+/uploads/
+*.wav
+*.mp3
+*.ogg
+
+# Pytest & Coverage
+.pytest_cache/
+.hypothesis/
+.coverage
+htmlcov/
+
+# Logs
+*.log
