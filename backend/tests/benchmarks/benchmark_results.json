@@ -1,0 +1,144 @@
+{
+  "dataset_name": "T2T_DRIVE_NOISE_INTELLIGENCE_BENCHMARK_SUITE",
+  "total_scenarios": 10,
+  "pipeline_a_baseline": {
+    "name": "Pipeline A (Raw Audio -> Direct STT)",
+    "average_wer": 0.2771,
+    "average_cer": 0.266,
+    "exact_match_accuracy_pct": 30.0,
+    "avg_processing_latency_ms": 0.01
+  },
+  "pipeline_b_noise_aware": {
+    "name": "Pipeline B (Phase 6 Noise-Aware Preprocessing + STT)",
+    "average_wer": 0.0667,
+    "average_cer": 0.0485,
+    "exact_match_accuracy_pct": 80.0,
+    "avg_processing_latency_ms": 29.39,
+    "pre_flight_unusable_rejections": 1,
+    "confirmation_firewall_enforcements": 0
+  },
+  "comparative_delta": {
+    "wer_reduction_absolute": 0.2104,
+    "wer_reduction_relative_pct": 75.93,
+    "cer_reduction_absolute": 0.2175,
+    "accuracy_improvement_pct": 50.0
+  },
+  "breakdown_by_condition_pipeline_a": {
+    "CLEAN": {
+      "avg_wer": 0.0,
+      "avg_cer": 0.0,
+      "samples": 2
+    },
+    "ENGINE_NOISE": {
+      "avg_wer": 0.4,
+      "avg_cer": 0.3567,
+      "samples": 2
+    },
+    "TRAFFIC_NOISE": {
+      "avg_wer": 0.3333,
+      "avg_cer": 0.3478,
+      "samples": 1
+    },
+    "HONKING": {
+      "avg_wer": 0.1667,
+      "avg_cer": 0.1,
+      "samples": 1
+    },
+    "LOW_VOLUME": {
+      "avg_wer": 0.5714,
+      "avg_cer": 0.7297,
+      "samples": 1
+    },
+    "WIND_NOISE": {
+      "avg_wer": 0.4,
+      "avg_cer": 0.3846,
+      "samples": 1
+    },
+    "SILENCE": {
+      "avg_wer": 0.0,
+      "avg_cer": 0.0,
+      "samples": 1
+    },
+    "CLIPPING": {
+      "avg_wer": 0.5,
+      "avg_cer": 0.3846,
+      "samples": 1
+    }
+  },
+  "breakdown_by_condition_pipeline_b": {
+    "CLEAN": {
+      "avg_wer": 0.0,
+      "avg_cer": 0.0,
+      "samples": 2
+    },
+    "ENGINE_NOISE": {
+      "avg_wer": 0.0,
+      "avg_cer": 0.0,
+      "samples": 2
+    },
+    "TRAFFIC_NOISE": {
+      "avg_wer": 0.0,
+      "avg_cer": 0.0,
+      "samples": 1
+    },
+    "HONKING": {
+      "avg_wer": 0.1667,
+      "avg_cer": 0.1,
+      "samples": 1
+    },
+    "LOW_VOLUME": {
+      "avg_wer": 0.0,
+      "avg_cer": 0.0,
+      "samples": 1
+    },
+    "WIND_NOISE": {
+      "avg_wer": 0.0,
+      "avg_cer": 0.0,
+      "samples": 1
+    },
+    "SILENCE": {
+      "avg_wer": 0.0,
+      "avg_cer": 0.0,
+      "samples": 1
+    },
+    "CLIPPING": {
+      "avg_wer": 0.5,
+      "avg_cer": 0.3846,
+      "samples": 1
+    }
+  },
+  "breakdown_by_language_pipeline_a": {
+    "tanglish": {
+      "avg_wer": 0.1417,
+      "avg_cer": 0.1176,
+      "samples": 4
+    },
+    "tamil": {
+      "avg_wer": 0.3778,
+      "avg_cer": 0.3584,
+      "samples": 3
+    },
+    "english": {
+      "avg_wer": 0.3571,
+      "avg_cer": 0.3714,
+      "samples": 3
+    }
+  },
+  "breakdown_by_language_pipeline_b": {
+    "tanglish": {
+      "avg_wer": 0.0417,
+      "avg_cer": 0.025,
+      "samples": 4
+    },
+    "tamil": {
+      "avg_wer": 0.0,
+      "avg_cer": 0.0,
+      "samples": 3
+    },
+    "english": {
+      "avg_wer": 0.1667,
+      "avg_cer": 0.1282,
+      "samples": 3
+    }
+  }
+}

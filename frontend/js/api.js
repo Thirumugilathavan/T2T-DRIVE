@@ -27,7 +27,8 @@
       reminders:           "/api/reminders",
       remindersScan:       "/api/reminders/scan",
       settlementCompare:   "/api/settlement/compare",
-      speak:               "/api/speech/speak"
+      speak:               "/api/speech/speak",
+      analyzeAudio:        "/api/voice/analyze-audio"
     }
   };
 
@@ -356,9 +357,27 @@
     });
   }
 
+  /**
+   * POST /api/voice/analyze-audio (Phase 6 Noise Intelligence)
+   * @param {Blob} audioBlob
+   * @param {string} lang
+   */
+  async function analyzeAudio(audioBlob, lang = "tanglish") {
+    const url = window.T2T_CONFIG.API_BASE + (window.T2T_CONFIG.ENDPOINTS.analyzeAudio || "/api/voice/analyze-audio");
+    const formData = new FormData();
+    formData.append("file", audioBlob, "recording.wav");
+    formData.append("language", lang);
+
+    return await fetchWithTimeout(url, {
+      method: "POST",
+      body: formData
+    });
+  }
+
   // Export to global API object
   window.API = {
     transcribe,
+    analyzeAudio,
     agentHandle,
     confirm,
     getSummary,

@@ -1,7 +1,7 @@
 """
 Pydantic schemas and dataclasses for T2T DRIVE Voice Pipeline.
 Defines schemas for audio validation, STT transcriptions, TTS synthesis,
-and unified voice conversational interactions.
+audio quality metrics, and unified voice conversational interactions.
 """
 
 from typing import Optional, Dict, Any, List
@@ -29,6 +29,13 @@ class STTResponse(BaseModel):
     processing_status: str = "SUCCESS"  # SUCCESS, EMPTY, ERROR
     duration_seconds: Optional[float] = None
     error: Optional[str] = None
+    
+    # Phase 6 Acoustic Intelligence Enrichments
+    audio_quality: Optional[str] = None  # GOOD, MODERATE, POOR, VERY_POOR, UNUSABLE
+    snr_db: Optional[float] = None
+    noise_type: Optional[str] = None
+    preprocessing_applied: Optional[List[str]] = None
+    analysis_report: Optional[Dict[str, Any]] = None
 
 
 class TTSRequest(BaseModel):
@@ -68,3 +75,13 @@ class VoiceTurnResponse(BaseModel):
     tts_provider: Optional[str] = None
     tts_status: str = "SKIPPED"  # SUCCESS, ERROR, SKIPPED
     error: Optional[str] = None
+
+    # Phase 6 Noise Intelligence Enrichments
+    audio_quality: Optional[str] = None
+    noise_classification: Optional[Dict[str, Any]] = None
+    snr_estimate: Optional[Dict[str, Any]] = None
+    vad_result: Optional[Dict[str, Any]] = None
+    preprocessing: Optional[Dict[str, Any]] = None
+    speech_confidence: Optional[Dict[str, Any]] = None
+    retry_advisory: Optional[Dict[str, Any]] = None
+    clarification_required: bool = False

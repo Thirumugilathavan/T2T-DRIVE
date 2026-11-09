@@ -95,6 +95,43 @@ def _handle_speak_request():
 # PRIMARY VOICE ENDPOINTS (/api/voice)
 # ============================================================================
 
+@voice_bp.route("/analyze-audio", methods=["POST"])
+@require_auth
+def analyze_audio():
+    """
+    Analyzes audio quality, noise classification, SNR, and VAD without executing any financial action.
+    """
+    audio_file = request.files.get("audio") or request.files.get("file") or request.files.get("audio_file")
+    if not audio_file:
+        return error_response(
+            code="MISSING_AUDIO_FILE",
+            message="No audio file provided. Pass audio file in 'audio' or 'file' field.",
+            status_code=400
+        )
+
+    filename = audio_file.filename or "audio.wav"
+    audio_bytes = audio_file.read()
+
+    lang = request.form.get("lang") or request.form.get("language") or "tanglish"
+    voice_svc = current_app.extensions["voice_service"]
+
+    val_res = voice_svc.validator.validate_bytes(audio_bytes, client_filename=filename)
+    if not val_res.is_valid:
+        return error_response(
+            code="INVALID_AUDIO",
+            message=val_res.error or "Audio validation failed.",
+            status_code=400
+        )
+
+    report = voice_svc.noise_service.analyze_audio(
+        audio_bytes=audio_bytes,
+        audio_format=val_res.format,
+        language=lang
+    )
+
+    return success_response(report.to_dict())
+
+
 @voice_bp.route("/transcribe", methods=["POST"])
 @require_auth
 def transcribe():
@@ -197,3 +234,10 @@ def speech_transcribe_alias():
 def speech_speak_alias():
     """Alias for /api/speech/speak."""
     return _handle_speak_request()
+
+
+@speech_bp.route("/analyze-audio", methods=["POST"])
+@require_auth
+def speech_analyze_audio_alias():
+    """Alias for /api/speech/analyze-audio."""
+    return analyze_audio()

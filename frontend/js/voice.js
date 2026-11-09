@@ -240,11 +240,35 @@
       const res = await window.API.transcribe(blob, lang);
 
       pttLabel.textContent = "Tap & Speak";
-      visualizerSubtext.textContent = "Microphone idle. Speech transcribed successfully!";
       drawIdleWaveform();
+
+      if (res) {
+        // Phase 6 Noise Intelligence Feedback
+        const quality = res.audio_quality || "UNKNOWN";
+        const noiseType = res.noise_type || "NORMAL";
+        const snr = (res.snr_db !== undefined && res.snr_db !== null) ? `${Number(res.snr_db).toFixed(1)}dB` : null;
+        const prep = (res.preprocessing_applied && res.preprocessing_applied.length > 0) ? ` [Filtered: ${res.preprocessing_applied.join(", ")}]` : "";
+
+        let qualityColor = "#22c55e"; // green
+        if (quality === "MODERATE") qualityColor = "#eab308"; // yellow
+        else if (quality === "POOR" || quality === "VERY_POOR") qualityColor = "#f97316"; // orange
+        else if (quality === "UNUSABLE") qualityColor = "#ef4444"; // red
+
+        const snrText = snr ? ` • SNR: ${snr}` : "";
+        visualizerSubtext.innerHTML = `Audio Quality: <b style="color:${qualityColor}">${quality}</b> (${noiseType}${snrText})${prep}`;
+
+        if (res.analysis_report && res.analysis_report.retry_advisory) {
+          const adv = res.analysis_report.retry_advisory;
+          if (adv.display_message) {
+            showVoiceAlert(adv.display_message, adv.should_retry ? "warning" : "danger");
+          }
+        }
+      }
 
       if (res && res.transcript) {
         handleUserTextSubmission(res.transcript, res.detected_language);
+      } else if (res && res.error) {
+        showVoiceAlert(res.error, "warning");
       }
     } catch (err) {
       console.error("Transcription error:", err);

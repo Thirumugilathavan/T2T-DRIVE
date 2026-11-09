@@ -186,12 +186,19 @@ def create_app(config_name=None):
         max_duration_seconds=float(app.config.get("VOICE_MAX_DURATION_SECONDS", 60))
     )
 
+    # Phase 6: Initialize Noise Intelligence Engine
+    from app.voice.noise.noise_service import NoiseService
+    noise_service = NoiseService(
+        enable_adaptive_preprocessing=app.config.get("AUDIO_ADAPTIVE_PREPROCESSING_ENABLED", True)
+    )
+
     voice_service = VoiceService(
         prisma_adapter=prisma_adapter,
         timbre_adapter=timbre_adapter,
         agent_service=agent_service,
         validator=audio_validator,
-        preprocessor=audio_preprocessor
+        preprocessor=audio_preprocessor,
+        noise_service=noise_service
     )
 
     # Store in app extensions for dependency injection in routes
@@ -211,6 +218,7 @@ def create_app(config_name=None):
     app.extensions["audio_validator"] = audio_validator
     app.extensions["audio_preprocessor"] = audio_preprocessor
     app.extensions["voice_service"] = voice_service
+    app.extensions["noise_service"] = noise_service
 
     # Phase 5 Extensions
     app.extensions["storage_adapter"] = storage_adapter

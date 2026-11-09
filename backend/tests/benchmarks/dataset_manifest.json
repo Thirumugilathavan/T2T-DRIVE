@@ -1,0 +1,141 @@
+{
+  "version": "1.0.0",
+  "name": "T2T_DRIVE_NOISE_INTELLIGENCE_BENCHMARK_SUITE",
+  "description": "Multilingual driver acoustic benchmark covering clean, vehicle engine, traffic noise, horn blasts, wind, low volume, and clipping across Tamil, Tanglish, and English.",
+  "dataset": [
+    {
+      "id": "SCN_001_CLEAN_TNGLISH_EXPENSE",
+      "language": "tanglish",
+      "audio_condition": "CLEAN",
+      "expected_transcript": "Diesel 450 roobai pottuten",
+      "intent": "RECORD_EXPENSE",
+      "expected_slots": {
+        "amount": 450.0,
+        "category": "FUEL"
+      },
+      "requires_confirmation": true,
+      "target_snr_db": 28.0,
+      "expected_directive": "REQUIRE_EXPLICIT_CONFIRMATION"
+    },
+    {
+      "id": "SCN_002_ENGINE_NOISE_TNGLISH_EXPENSE",
+      "language": "tanglish",
+      "audio_condition": "ENGINE_NOISE",
+      "expected_transcript": "Tea biscuit 40 roobai aachu",
+      "intent": "RECORD_EXPENSE",
+      "expected_slots": {
+        "amount": 40.0,
+        "category": "FOOD"
+      },
+      "requires_confirmation": true,
+      "target_snr_db": 11.5,
+      "expected_directive": "REQUIRE_EXPLICIT_CONFIRMATION"
+    },
+    {
+      "id": "SCN_003_TRAFFIC_NOISE_TAMIL_INCOME",
+      "language": "tamil",
+      "audio_condition": "TRAFFIC_NOISE",
+      "expected_transcript": "இன்னைக்கு சவாரி வருமானம் எண்ணூறு ரூபாய் வந்தது",
+      "intent": "RECORD_INCOME",
+      "expected_slots": {
+        "amount": 800.0,
+        "category": "FARE"
+      },
+      "requires_confirmation": true,
+      "target_snr_db": 9.0,
+      "expected_directive": "REQUIRE_EXPLICIT_CONFIRMATION"
+    },
+    {
+      "id": "SCN_004_HONKING_TNGLISH_SETTLEMENT",
+      "language": "tanglish",
+      "audio_condition": "HONKING",
+      "expected_transcript": "Owner-kku 300 roobai settlement anupiten",
+      "intent": "CALCULATE_SETTLEMENT",
+      "expected_slots": {
+        "amount": 300.0
+      },
+      "requires_confirmation": true,
+      "target_snr_db": 3.0,
+      "expected_directive": "REQUEST_REPEAT"
+    },
+    {
+      "id": "SCN_005_LOW_VOLUME_ENGLISH_SUMMARY",
+      "language": "english",
+      "audio_condition": "LOW_VOLUME",
+      "expected_transcript": "Show me my earnings summary for today",
+      "intent": "VIEW_SUMMARY",
+      "expected_slots": {
+        "period": "TODAY"
+      },
+      "requires_confirmation": false,
+      "target_snr_db": 14.0,
+      "expected_directive": "ACCEPT_FOR_INTERPRETATION"
+    },
+    {
+      "id": "SCN_006_WIND_NOISE_TAMIL_MAINTENANCE",
+      "language": "tamil",
+      "audio_condition": "WIND_NOISE",
+      "expected_transcript": "பிரேக் ஆயில் மாத்தினேன் முன்னூறு ரூபாய்",
+      "intent": "ADD_MAINTENANCE",
+      "expected_slots": {
+        "amount": 300.0,
+        "service_type": "BRAKE_OIL"
+      },
+      "requires_confirmation": true,
+      "target_snr_db": 7.5,
+      "expected_directive": "REQUIRE_EXPLICIT_CONFIRMATION"
+    },
+    {
+      "id": "SCN_007_SILENCE_DRIVER_MIC_OFF",
+      "language": "tanglish",
+      "audio_condition": "SILENCE",
+      "expected_transcript": "",
+      "intent": "UNKNOWN",
+      "expected_slots": {},
+      "requires_confirmation": false,
+      "target_snr_db": 0.0,
+      "expected_directive": "REJECT_UNUSABLE_AUDIO"
+    },
+    {
+      "id": "SCN_008_CLIPPING_DISTORTED_VOICE",
+      "language": "english",
+      "audio_condition": "CLIPPING",
+      "expected_transcript": "Paid police challan five hundred rupees",
+      "intent": "PAY_CHALLAN",
+      "expected_slots": {
+        "amount": 500.0
+      },
+      "requires_confirmation": true,
+      "target_snr_db": 22.0,
+      "expected_directive": "REJECT_UNUSABLE_AUDIO"
+    },
+    {
+      "id": "SCN_009_ENGINE_NOISE_TAMIL_EXPENSE",
+      "language": "tamil",
+      "audio_condition": "ENGINE_NOISE",
+      "expected_transcript": "டயர் பஞ்சர் ஒட்டினேன் ஐம்பது ரூபாய்",
+      "intent": "RECORD_EXPENSE",
+      "expected_slots": {
+        "amount": 50.0,
+        "category": "MAINTENANCE"
+      },
+      "requires_confirmation": true,
+      "target_snr_db": 12.0,
+      "expected_directive": "REQUIRE_EXPLICIT_CONFIRMATION"
+    },
+    {
+      "id": "SCN_010_CLEAN_ENGLISH_INCOME",
+      "language": "english",
+      "audio_condition": "CLEAN",
+      "expected_transcript": "Received one thousand two hundred rupees cash from customer",
+      "intent": "RECORD_INCOME",
+      "expected_slots": {
+        "amount": 1200.0,
+        "category": "FARE"
+      },
+      "requires_confirmation": true,
+      "target_snr_db": 29.0,
+      "expected_directive": "REQUIRE_EXPLICIT_CONFIRMATION"
+    }
+  ]
+}

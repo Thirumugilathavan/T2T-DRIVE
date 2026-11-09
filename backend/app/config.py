@@ -74,6 +74,17 @@ class Config:
     OCR_PROVIDER = os.getenv("OCR_PROVIDER", "mock")
     REMINDER_NOTIFICATION_MODE = os.getenv("REMINDER_NOTIFICATION_MODE", "mock")
 
+    # Phase 6: Advanced Noise-Aware Speech Intelligence & Quality Analysis
+    AUDIO_NOISE_ANALYSIS_ENABLED = os.getenv("AUDIO_NOISE_ANALYSIS_ENABLED", "1") == "1"
+    AUDIO_SNR_ENABLED = os.getenv("AUDIO_SNR_ENABLED", "1") == "1"
+    AUDIO_VAD_ENABLED = os.getenv("AUDIO_VAD_ENABLED", "1") == "1"
+    AUDIO_ADAPTIVE_PREPROCESSING_ENABLED = os.getenv("AUDIO_ADAPTIVE_PREPROCESSING_ENABLED", "1") == "1"
+    AUDIO_NOISE_REDUCTION_ENABLED = os.getenv("AUDIO_NOISE_REDUCTION_ENABLED", "1") == "1"
+    AUDIO_MAX_RETRIES = int(os.getenv("AUDIO_MAX_RETRIES", "3"))
+    AUDIO_QUALITY_THRESHOLD = os.getenv("AUDIO_QUALITY_THRESHOLD", "POOR")
+    AUDIO_MIN_SPEECH_DURATION = float(os.getenv("AUDIO_MIN_SPEECH_DURATION", "0.2"))
+    AUDIO_MAX_PROCESSING_DURATION = float(os.getenv("AUDIO_MAX_PROCESSING_DURATION", "5.0"))
+
 
 class DevelopmentConfig(Config):
     DEBUG = True

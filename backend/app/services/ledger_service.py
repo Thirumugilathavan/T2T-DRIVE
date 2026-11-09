@@ -146,7 +146,8 @@ class LedgerService:
         driver_id: str,
         reason: str,
         idempotency_key: str,
-        actor: Optional[str] = None
+        actor: Optional[str] = None,
+        transaction_date: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Creates an append-only reversal entry in the ledger.
@@ -178,6 +179,7 @@ class LedgerService:
         rev_amount = quantize_money(original["amount"])
         rev_signed = FinancialCalculator.calculate_signed_amount(rev_type, rev_amount)
         rev_id = f"TXN_{secrets.token_hex(8)}"
+        txn_date = transaction_date or original.get("transaction_date") or today_ist()
 
         rev_obj = FinancialTransaction(
             transaction_id=rev_id,
@@ -188,7 +190,7 @@ class LedgerService:
             signed_amount=rev_signed,
             category=original["category"],
             description=f"Reversal of {original_txn_id}: {reason}",
-            transaction_date=today_ist(),
+            transaction_date=txn_date,
             created_at=now_utc(),
             created_by=actor or driver_id,
             idempotency_key=idempotency_key,
