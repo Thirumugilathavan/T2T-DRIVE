@@ -45,6 +45,13 @@ class AgentIntent:
     CHECK_OVERDUE_SERVICE = "CHECK_OVERDUE_SERVICE"
     MAINTENANCE_SUMMARY = "MAINTENANCE_SUMMARY"
 
+    # Passenger Extension Trip Intents
+    START_TRIP = "START_TRIP"
+    CHANGE_DESTINATION = "CHANGE_DESTINATION"
+    ADD_STOP = "ADD_STOP"
+    CHANGE_FARE = "CHANGE_FARE"
+    RECORD_TRIP_PAYMENT = "RECORD_TRIP_PAYMENT"
+
 
 # ============================================================================
 # NUMBER PARSING (TAMIL WORDS, TANGLISH, & DIGITS)
@@ -468,6 +475,64 @@ class MultilingualNLU:
                 "language": language,
                 "slots": slots,
                 "missing_slots": missing
+            }
+
+        # Passenger Extension Trip Actions
+        if any(w in lower for w in ["start trip", "trip start", "savari start", "சவாரி தொடங்கு"]):
+            return {
+                "intent": AgentIntent.START_TRIP,
+                "confidence": 0.92,
+                "language": language,
+                "slots": {"vehicle_id": vehicle_id},
+                "missing_slots": []
+            }
+
+        if any(w in lower for w in ["change destination", "destination mathu", "destination maathu", "சேருமிடம் மாற்று"]) or ("destination" in lower and "change" in lower):
+            # Extract destination
+            dest = None
+            m = re.search(r"(?:to|mathu|maathu)\s+([a-zA-Z\s]{3,25})$", clean_text, re.IGNORECASE)
+            if m:
+                dest = m.group(1).strip()
+            return {
+                "intent": AgentIntent.CHANGE_DESTINATION,
+                "confidence": 0.88,
+                "language": language,
+                "slots": {"destination_location": dest},
+                "missing_slots": ["destination_location"] if not dest else []
+            }
+
+        if any(w in lower for w in ["add stop", "stop at", "extra stop", "நிறுத்தம்"]):
+            stop = None
+            m = re.search(r"(?:at|stop)\s+([a-zA-Z\s]{3,25})$", clean_text, re.IGNORECASE)
+            if m:
+                stop = m.group(1).strip()
+            return {
+                "intent": AgentIntent.ADD_STOP,
+                "confidence": 0.88,
+                "language": language,
+                "slots": {"stop": stop},
+                "missing_slots": ["stop"] if not stop else []
+            }
+
+        if any(w in lower for w in ["change fare", "fare change", "kattanam maathu", "கட்டணம் மாற்று"]) or ("fare" in lower and amount is not None and not is_income_verb):
+            return {
+                "intent": AgentIntent.CHANGE_FARE,
+                "confidence": 0.88,
+                "language": language,
+                "slots": {"agreed_fare": float(amount) if amount else None},
+                "missing_slots": ["agreed_fare"] if amount is None else []
+            }
+
+        if any(w in lower for w in ["trip payment", "passenger paid", "fare collect", "சவாரி கட்டணம்"]):
+            return {
+                "intent": AgentIntent.RECORD_TRIP_PAYMENT,
+                "confidence": 0.90,
+                "language": language,
+                "slots": {
+                    "amount": float(amount) if amount else None,
+                    "payment_method": "CASH" if "cash" in lower else ("UPI" if "upi" in lower or "gpay" in lower else "CASH")
+                },
+                "missing_slots": ["amount"] if amount is None else []
             }
 
         # Standalone amount provided during slot-filling or conversation

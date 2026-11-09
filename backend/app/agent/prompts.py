@@ -409,3 +409,101 @@ def prompt_documents_list(
             "text": f"Ungalukku {count} documents pathivu seiyappattulladhu: {names_str}.",
             "voice": f"Ungalukku {count} documents pathivu seiyappattulladhu."
         }
+
+
+# ============================================================================
+# PASSENGER & TRIP AGREEMENT PROMPTS
+# ============================================================================
+
+def prompt_trip_started(trip_id: str, destination: str, fare: Any, language: str = "tanglish") -> Dict[str, str]:
+    amt = format_inr(fare)
+    if language == "tamil":
+        return {
+            "text": f"சவாரி தொடங்கப்பட்டது! சேருமிடம்: {destination}, ஒப்புக்கொண்ட கட்டணம்: ₹{amt}.",
+            "voice": f"சவாரி தொடங்கப்பட்டது. சேருமிடம் {destination}. கட்டணம் ரூபாய் {amt}."
+        }
+    elif language == "english":
+        return {
+            "text": f"Trip started! Destination: {destination}, Agreed Fare: ₹{amt}.",
+            "voice": f"Trip started to {destination} with agreed fare {amt} rupees."
+        }
+    else:  # tanglish
+        return {
+            "text": f"Trip start aayiduchu! Destination: {destination}, Agreed Fare: ₹{amt}.",
+            "voice": f"Trip start aayiduchu. Destination {destination}, fare roobai {amt}."
+        }
+
+
+def prompt_trip_destination_proposal(new_destination: str, language: str = "tanglish") -> Dict[str, str]:
+    if language == "tamil":
+        return {
+            "text": f"சேருமிடம் '{new_destination}'-க்கு மாற்ற கோரிக்கை வந்துள்ளது. உறுதிப்படுத்த 'ஆம்' அல்லது 'வேண்டாம்' என்று கூறவும்.",
+            "voice": f"சேருமிடம் {new_destination} மாற்ற கோரிக்கை வந்துள்ளது. ஆம் அல்லது வேண்டாம் என்று சொல்லுங்கள்."
+        }
+    elif language == "english":
+        return {
+            "text": f"Destination change proposed to '{new_destination}'. Reply 'Confirm' or 'Cancel'.",
+            "voice": f"Destination change proposed to {new_destination}. Reply confirm or cancel."
+        }
+    else:  # tanglish
+        return {
+            "text": f"Destination '{new_destination}'-kku matha request vandhurukku. 'Confirm' or 'Cancel' nu sollunga.",
+            "voice": f"Destination {new_destination}-kku matha request vandhurukku. Confirm or cancel nu sollunga."
+        }
+
+
+def prompt_trip_stop_proposal(stop_name: str, language: str = "tanglish") -> Dict[str, str]:
+    if language == "tamil":
+        return {
+            "text": f"கூடுதல் நிறுத்தம் '{stop_name}' சேர்க்க கோரிக்கை வந்துள்ளது. உறுதிப்படுத்தவும்.",
+            "voice": f"கூடுதல் நிறுத்தம் {stop_name} சேர்க்க கோரிக்கை வந்துள்ளது."
+        }
+    elif language == "english":
+        return {
+            "text": f"Additional stop proposed at '{stop_name}'. Confirm to accept.",
+            "voice": f"Additional stop proposed at {stop_name}. Please confirm."
+        }
+    else:  # tanglish
+        return {
+            "text": f"Additional stop '{stop_name}' add panna request vandhurukku. Confirm seiyava?",
+            "voice": f"Additional stop {stop_name} add panna request vandhurukku."
+        }
+
+
+def prompt_trip_fare_proposal(new_fare: Any, language: str = "tanglish") -> Dict[str, str]:
+    amt = format_inr(new_fare)
+    if language == "tamil":
+        return {
+            "text": f"புதிய கட்டணம் ₹{amt} முன்மொழியப்பட்டுள்ளது. ஒப்புக்கொள்ள 'ஆம்' என்று கூறவும்.",
+            "voice": f"புதிய கட்டணம் ரூபாய் {amt} முன்மொழியப்பட்டுள்ளது. ஒப்புக்கொள்ள ஆம் என்று சொல்லுங்கள்."
+        }
+    elif language == "english":
+        return {
+            "text": f"New fare of ₹{amt} proposed. Reply 'Confirm' to accept.",
+            "voice": f"New fare of {amt} rupees proposed. Reply confirm to accept."
+        }
+    else:  # tanglish
+        return {
+            "text": f"Pudhiya fare ₹{amt} propose aayirukku. 'Confirm' nu sollunga.",
+            "voice": f"Pudhiya fare roobai {amt} propose aayirukku. Confirm nu sollunga."
+        }
+
+
+def prompt_trip_payment_confirmed(amount: Any, outstanding: Any, language: str = "tanglish") -> Dict[str, str]:
+    amt = format_inr(amount)
+    out = format_inr(outstanding)
+    if language == "tamil":
+        return {
+            "text": f"₹{amt} பணம் பெறப்பட்டது. மீதமுள்ள தொகை: ₹{out}.",
+            "voice": f"ரூபாய் {amt} பெறப்பட்டது. மீதம் ரூபாய் {out}."
+        }
+    elif language == "english":
+        return {
+            "text": f"Recorded payment of ₹{amt}. Remaining balance: ₹{out}.",
+            "voice": f"Recorded payment of {amt} rupees. Remaining balance {out} rupees."
+        }
+    else:  # tanglish
+        return {
+            "text": f"₹{amt} payment collect aachu. Balance: ₹{out}.",
+            "voice": f"Roobai {amt} payment collect aachu. Balance roobai {out}."
+        }

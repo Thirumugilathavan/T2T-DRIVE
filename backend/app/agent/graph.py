@@ -54,17 +54,29 @@ def route_after_nlu(state: AgentState) -> str:
     if intent in (AgentIntent.CHECK_UPCOMING_SERVICE, AgentIntent.CHECK_OVERDUE_SERVICE):
         return "query_upcoming_service"
 
-    # 7. Reporting intents
+    # 7. Passenger Extension Trip Intents
+    if intent == AgentIntent.START_TRIP:
+        return "start_trip"
+    if intent == AgentIntent.CHANGE_DESTINATION:
+        return "trip_destination"
+    if intent == AgentIntent.ADD_STOP:
+        return "trip_stop"
+    if intent == AgentIntent.CHANGE_FARE:
+        return "trip_fare"
+    if intent == AgentIntent.RECORD_TRIP_PAYMENT:
+        return "trip_payment"
+
+    # 8. Reporting intents
     if intent == AgentIntent.GET_SUMMARY:
         return "query_summary"
     if intent == AgentIntent.CALCULATE_SETTLEMENT:
         return "query_settlement"
 
-    # 8. Help guidance
+    # 9. Help guidance
     if intent == AgentIntent.HELP:
         return "help"
 
-    # 9. Fallback
+    # 10. Fallback
     return "fallback"
 
 
@@ -86,6 +98,11 @@ def build_agent_graph(nodes: AgentNodes, checkpointer=None):
     workflow.add_node("query_documents_list", nodes.query_documents_list_node)
     workflow.add_node("query_unpaid_challans", nodes.query_unpaid_challans_node)
     workflow.add_node("query_upcoming_service", nodes.query_upcoming_service_node)
+    workflow.add_node("start_trip", nodes.start_trip_node)
+    workflow.add_node("trip_destination", nodes.trip_destination_node)
+    workflow.add_node("trip_stop", nodes.trip_stop_node)
+    workflow.add_node("trip_fare", nodes.trip_fare_node)
+    workflow.add_node("trip_payment", nodes.trip_payment_node)
     workflow.add_node("help", nodes.help_node)
     workflow.add_node("fallback", nodes.fallback_node)
 
@@ -107,6 +124,11 @@ def build_agent_graph(nodes: AgentNodes, checkpointer=None):
             "query_documents_list": "query_documents_list",
             "query_unpaid_challans": "query_unpaid_challans",
             "query_upcoming_service": "query_upcoming_service",
+            "start_trip": "start_trip",
+            "trip_destination": "trip_destination",
+            "trip_stop": "trip_stop",
+            "trip_fare": "trip_fare",
+            "trip_payment": "trip_payment",
             "help": "help",
             "fallback": "fallback",
         }
@@ -123,6 +145,11 @@ def build_agent_graph(nodes: AgentNodes, checkpointer=None):
     workflow.add_edge("query_documents_list", END)
     workflow.add_edge("query_unpaid_challans", END)
     workflow.add_edge("query_upcoming_service", END)
+    workflow.add_edge("start_trip", END)
+    workflow.add_edge("trip_destination", END)
+    workflow.add_edge("trip_stop", END)
+    workflow.add_edge("trip_fare", END)
+    workflow.add_edge("trip_payment", END)
     workflow.add_edge("help", END)
     workflow.add_edge("fallback", END)
 

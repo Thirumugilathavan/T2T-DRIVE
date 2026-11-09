@@ -23,9 +23,15 @@ from app.agent.prompts import (
     prompt_document_expiry,
     prompt_documents_list,
     prompt_unpaid_challans,
-    prompt_upcoming_service
+    prompt_upcoming_service,
+    prompt_trip_started,
+    prompt_trip_destination_proposal,
+    prompt_trip_stop_proposal,
+    prompt_trip_fare_proposal,
+    prompt_trip_payment_confirmed
 )
 from app.models.financial import PendingActionType
+from app.models.trip import ProposalType
 from app.utils.dates import today_ist
 
 logger = logging.getLogger("t2t_drive.agent_nodes")
@@ -44,6 +50,8 @@ class AgentNodes:
         document_service=None,
         challan_service=None,
         maintenance_service=None,
+        trip_service=None,
+        trip_reconciliation_service=None,
         db=None
     ):
         self.pending_svc = pending_action_service
@@ -52,6 +60,8 @@ class AgentNodes:
         self.document_svc = document_service
         self.challan_svc = challan_service
         self.maintenance_svc = maintenance_service
+        self.trip_svc = trip_service
+        self.trip_reconciliation_svc = trip_reconciliation_service
         self.db = db
 
     def nlu_node(self, state: AgentState) -> Dict[str, Any]:
@@ -516,6 +526,161 @@ class AgentNodes:
         """Handles unrecognized queries."""
         language = state.get("language", "tanglish")
         prompt_data = prompt_unknown(language=language)
+        return {
+            "response_message": prompt_data["text"],
+            "response_voice_text": prompt_data["voice"],
+            "next_step": "IDLE"
+        }
+
+    # ========================================================================
+    # PASSENGER EXTENSION NODES: TRIPS, PROPOSALS & RECONCILIATION
+    # ========================================================================
+
+    def start_trip_node(self, state: AgentState) -> Dict[str, Any]:
+        """Creates and initiates a new trip with passenger agreement."""
+        driver_id = state.get("driver_id", "")
+        language = state.get("language", "tanglish")
+        slots = state.get("slots", {})
+        destination = slots.get("destination") or "Destination"
+        fare = slots.get("fare") or slots.get("amount") or Decimal("100.00")
+        vehicle_id = slots.get("vehicle_id") or "TN-01-AB-1234"
+
+        trip_id = f"TRIP_MOCK_{secrets.token_hex(4)}"
+        if self.trip_svc:
+            try:
+                trip = self.trip_svc.create_trip(
+                    driver_id=driver_id,
+                    vehicle_id=vehicle_id,
+                    destination=destination,
+                    initial_fare=fare
+                )
+                trip_id = trip["trip_id"]
+            except Exception as e:
+                logger.error("Failed to create trip via agent: %s", e)
+
+        prompt_data = prompt_trip_started(
+            trip_id=trip_id,
+            destination=destination,
+            fare=fare,
+            language=language
+        )
+        return {
+            "trip_id": trip_id,
+            "response_message": prompt_data["text"],
+            "response_voice_text": prompt_data["voice"],
+            "next_step": "IDLE"
+        }
+
+    def trip_destination_node(self, state: AgentState) -> Dict[str, Any]:
+        """Proposes a destination change for an active trip."""
+        driver_id = state.get("driver_id", "")
+        language = state.get("language", "tanglish")
+        slots = state.get("slots", {})
+        new_dest = slots.get("destination") or slots.get("new_destination") or "New Destination"
+
+        if self.trip_svc:
+            try:
+                active_trip = self.trip_svc.get_active_trip_for_driver(driver_id)
+                if active_trip:
+                    self.trip_svc.propose_change(
+                        trip_id=active_trip["trip_id"],
+                        proposer_role="DRIVER",
+                        proposal_type=ProposalType.DESTINATION_CHANGE,
+                        proposed_changes={"destination": new_dest}
+                    )
+            except Exception as e:
+                logger.error("Failed to propose destination change: %s", e)
+
+        prompt_data = prompt_trip_destination_proposal(new_destination=new_dest, language=language)
+        return {
+            "response_message": prompt_data["text"],
+            "response_voice_text": prompt_data["voice"],
+            "next_step": "IDLE"
+        }
+
+    def trip_stop_node(self, state: AgentState) -> Dict[str, Any]:
+        """Proposes an intermediate stop for an active trip."""
+        driver_id = state.get("driver_id", "")
+        language = state.get("language", "tanglish")
+        slots = state.get("slots", {})
+        stop_name = slots.get("stop_name") or slots.get("notes") or "Intermediate Stop"
+
+        if self.trip_svc:
+            try:
+                active_trip = self.trip_svc.get_active_trip_for_driver(driver_id)
+                if active_trip:
+                    self.trip_svc.propose_change(
+                        trip_id=active_trip["trip_id"],
+                        proposer_role="DRIVER",
+                        proposal_type=ProposalType.ADD_STOP,
+                        proposed_changes={"stop_name": stop_name}
+                    )
+            except Exception as e:
+                logger.error("Failed to propose additional stop: %s", e)
+
+        prompt_data = prompt_trip_stop_proposal(stop_name=stop_name, language=language)
+        return {
+            "response_message": prompt_data["text"],
+            "response_voice_text": prompt_data["voice"],
+            "next_step": "IDLE"
+        }
+
+    def trip_fare_node(self, state: AgentState) -> Dict[str, Any]:
+        """Proposes a fare change for an active trip."""
+        driver_id = state.get("driver_id", "")
+        language = state.get("language", "tanglish")
+        slots = state.get("slots", {})
+        new_fare = slots.get("fare") or slots.get("amount") or Decimal("150.00")
+
+        if self.trip_svc:
+            try:
+                active_trip = self.trip_svc.get_active_trip_for_driver(driver_id)
+                if active_trip:
+                    self.trip_svc.propose_change(
+                        trip_id=active_trip["trip_id"],
+                        proposer_role="DRIVER",
+                        proposal_type=ProposalType.FARE_CHANGE,
+                        proposed_changes={"fare": str(new_fare)}
+                    )
+            except Exception as e:
+                logger.error("Failed to propose fare change: %s", e)
+
+        prompt_data = prompt_trip_fare_proposal(new_fare=new_fare, language=language)
+        return {
+            "response_message": prompt_data["text"],
+            "response_voice_text": prompt_data["voice"],
+            "next_step": "IDLE"
+        }
+
+    def trip_payment_node(self, state: AgentState) -> Dict[str, Any]:
+        """Records a trip fare payment and executes financial reconciliation."""
+        driver_id = state.get("driver_id", "")
+        language = state.get("language", "tanglish")
+        slots = state.get("slots", {})
+        amount = slots.get("amount") or Decimal("100.00")
+        method = slots.get("payment_method") or "CASH"
+        outstanding = Decimal("0.00")
+
+        if self.trip_reconciliation_svc and self.trip_svc:
+            try:
+                active_trip = self.trip_svc.get_active_trip_for_driver(driver_id)
+                if active_trip:
+                    res = self.trip_reconciliation_svc.record_trip_payment(
+                        trip_id=active_trip["trip_id"],
+                        driver_id=driver_id,
+                        amount=Decimal(str(amount)),
+                        payment_method=method,
+                        idempotency_key=f"VOICE_PAY_{active_trip['trip_id']}_{secrets.token_hex(4)}"
+                    )
+                    outstanding = res.get("outstanding_amount", Decimal("0.00"))
+            except Exception as e:
+                logger.error("Failed to record trip payment via agent: %s", e)
+
+        prompt_data = prompt_trip_payment_confirmed(
+            amount=amount,
+            outstanding=outstanding,
+            language=language
+        )
         return {
             "response_message": prompt_data["text"],
             "response_voice_text": prompt_data["voice"],

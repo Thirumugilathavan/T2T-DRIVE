@@ -136,7 +136,37 @@ def create_app(config_name=None):
     # Link maintenance service to pending action service for ledger synchronization
     pending_action_service.set_maintenance_service(maintenance_service)
 
-    # 4.6 Initialize Conversational Agent (Phase 3 & Phase 5)
+    # 4.6 Initialize Passenger Extension Subsystems (Trips, Access, Reconciliation)
+    from app.repositories.trip_repository import TripRepository
+    from app.services.passenger_access_service import PassengerAccessService
+    from app.services.trip_service import TripService
+    from app.services.trip_reconciliation_service import TripReconciliationService
+    from app.voice.streaming_adapter import MockStreamingSTTAdapter
+    from app.services.continuous_listening_service import ContinuousListeningService
+
+    trip_repository = TripRepository(db=db)
+    passenger_access_service = PassengerAccessService(
+        repository=trip_repository,
+        secret_key=app.config.get("JWT_SECRET_KEY", "default-dev-secret-t2t-drive"),
+        base_url=app.config.get("BASE_URL", "http://localhost:5000")
+    )
+    trip_service = TripService(
+        repository=trip_repository,
+        passenger_access_service=passenger_access_service
+    )
+    trip_reconciliation_service = TripReconciliationService(
+        repository=trip_repository,
+        ledger_service=ledger_service,
+        idempotency_service=idempotency_service,
+        passenger_access_service=passenger_access_service
+    )
+    streaming_adapter = MockStreamingSTTAdapter()
+    continuous_listening_service = ContinuousListeningService(
+        trip_service=trip_service,
+        streaming_adapter=streaming_adapter
+    )
+
+    # 4.7 Initialize Conversational Agent (Phase 3, Phase 5 & Passenger Extension)
     from app.agent.service import AgentService
     agent_service = AgentService(
         db=db,
@@ -146,10 +176,12 @@ def create_app(config_name=None):
         settlement_service=settlement_service,
         document_service=document_service,
         challan_service=challan_service,
-        maintenance_service=maintenance_service
+        maintenance_service=maintenance_service,
+        trip_service=trip_service,
+        trip_reconciliation_service=trip_reconciliation_service
     )
 
-    # 4.7 Initialize Voice Integration (Phase 4)
+    # 4.8 Initialize Voice Integration (Phase 4)
     from app.voice import (
         AudioValidator,
         AudioPreprocessor,
@@ -231,6 +263,14 @@ def create_app(config_name=None):
     app.extensions["maintenance_service"] = maintenance_service
     app.extensions["reminder_service"] = reminder_service
 
+    # Passenger Extension Extensions
+    app.extensions["trip_repository"] = trip_repository
+    app.extensions["passenger_access_service"] = passenger_access_service
+    app.extensions["trip_service"] = trip_service
+    app.extensions["trip_reconciliation_service"] = trip_reconciliation_service
+    app.extensions["streaming_adapter"] = streaming_adapter
+    app.extensions["continuous_listening_service"] = continuous_listening_service
+
     # 5. Register Blueprints
     from app.routes.health_routes import health_bp
     from app.routes.auth_routes import auth_bp
@@ -247,6 +287,10 @@ def create_app(config_name=None):
     from app.routes.maintenance_routes import maintenance_bp
     from app.routes.reminder_routes import reminder_bp
 
+    # Passenger Extension Blueprints
+    from app.routes.trip_routes import trip_bp
+    from app.routes.passenger_routes import passenger_bp
+
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(transaction_bp)
@@ -260,6 +304,8 @@ def create_app(config_name=None):
     app.register_blueprint(challan_bp)
     app.register_blueprint(maintenance_bp)
     app.register_blueprint(reminder_bp)
+    app.register_blueprint(trip_bp)
+    app.register_blueprint(passenger_bp)
 
     # 6. Centralized Error Handlers
     register_error_handlers(app)

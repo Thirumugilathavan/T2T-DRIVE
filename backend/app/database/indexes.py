@@ -99,6 +99,18 @@ def ensure_indexes(db):
         db.revoked_tokens.create_index([("jti", ASCENDING)], unique=True)
         db.revoked_tokens.create_index([("expires_at", ASCENDING)], expireAfterSeconds=0)
 
-        logger.info("Successfully ensured all database indexes across 13 collections.")
+        # 14. trips, passenger_access, events & payments Collections (Passenger Extension)
+        db.trips.create_index([("trip_id", ASCENDING)], unique=True)
+        db.trips.create_index([("driver_id", ASCENDING), ("state", ASCENDING)])
+        db.trips.create_index([("driver_id", ASCENDING), ("created_at", DESCENDING)])
+        db.trip_passenger_access.create_index([("token_hash", ASCENDING)], unique=True)
+        db.trip_passenger_access.create_index([("trip_id", ASCENDING)])
+        db.trip_passenger_access.create_index([("expires_at", ASCENDING)], expireAfterSeconds=0)
+        db.trip_events.create_index([("trip_id", ASCENDING), ("timestamp", ASCENDING)])
+        db.trip_events.create_index([("event_id", ASCENDING)], unique=True)
+        db.trip_payments.create_index([("payment_id", ASCENDING)], unique=True)
+        db.trip_payments.create_index([("trip_id", ASCENDING), ("collected_at", ASCENDING)])
+
+        logger.info("Successfully ensured all database indexes across 17 collections.")
     except Exception as err:
         logger.warning("Index creation notice (e.g. mongomock partial index support): %s", err)

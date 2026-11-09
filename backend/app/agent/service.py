@@ -32,6 +32,8 @@ class AgentService:
         document_service=None,
         challan_service=None,
         maintenance_service=None,
+        trip_service=None,
+        trip_reconciliation_service=None,
         checkpointer=None
     ):
         self.db = db
@@ -42,6 +44,8 @@ class AgentService:
         self.document_svc = document_service
         self.challan_svc = challan_service
         self.maintenance_svc = maintenance_service
+        self.trip_svc = trip_service
+        self.trip_reconciliation_svc = trip_reconciliation_service
 
         # Initialize LangGraph node handlers and compile workflow
         self.nodes = AgentNodes(
@@ -51,6 +55,8 @@ class AgentService:
             document_service=document_service,
             challan_service=challan_service,
             maintenance_service=maintenance_service,
+            trip_service=trip_service,
+            trip_reconciliation_service=trip_reconciliation_service,
             db=db
         )
         self.graph = build_agent_graph(self.nodes, checkpointer=checkpointer)

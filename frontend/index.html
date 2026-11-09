@@ -54,6 +54,11 @@
           <span class="nav-text">Voice Co-Pilot</span>
           <span class="nav-badge beta">AI</span>
         </a>
+        <a href="#trips" class="nav-item" data-view="trips">
+          <span class="nav-icon">🚕</span>
+          <span class="nav-text">Trips &amp; QR</span>
+          <span class="nav-badge success" id="activeTripBadge">LIVE</span>
+        </a>
         <a href="#finance" class="nav-item" data-view="finance">
           <span class="nav-icon">💰</span>
           <span class="nav-text">Finance</span>
@@ -872,6 +877,153 @@
 
       </section>
 
+      <!-- VIEW: TRIPS & PASSENGER AGREEMENT -->
+      <section class="dashboard-view" id="view-trips">
+        <div class="view-grid">
+
+          <!-- CARD: ACTIVE TRIP & PASSENGER QR -->
+          <div class="card active-trip-card">
+            <div class="card-header">
+              <div class="header-with-status">
+                <span class="card-badge success-badge" id="tripStatusBadge">NO ACTIVE TRIP</span>
+                <h3 class="card-title">Live Trip &amp; Passenger Link</h3>
+              </div>
+              <button class="btn-sm btn-outline" id="refreshTripBtn" title="Refresh Active Trip">↻ Refresh</button>
+            </div>
+
+            <div id="noActiveTripPrompt" class="empty-state-box">
+              <span class="empty-icon">🚖</span>
+              <h4>No Active Trip in Progress</h4>
+              <p>Create a trip below or tell the voice co-pilot: <em>"Trip to Chennai Central fare 250"</em></p>
+            </div>
+
+            <div id="activeTripDetails" class="hidden">
+              <div class="trip-summary-row">
+                <div class="trip-metric">
+                  <span class="t-label">Trip ID</span>
+                  <strong class="t-val" id="activeTripId">—</strong>
+                </div>
+                <div class="trip-metric">
+                  <span class="t-label">Destination</span>
+                  <strong class="t-val" id="activeTripDestination">—</strong>
+                </div>
+                <div class="trip-metric">
+                  <span class="t-label">Agreed Fare</span>
+                  <strong class="t-val text-success" id="activeTripFare">₹0.00</strong>
+                </div>
+                <div class="trip-metric">
+                  <span class="t-label">Outstanding</span>
+                  <strong class="t-val text-warning" id="activeTripOutstanding">₹0.00</strong>
+                </div>
+              </div>
+
+              <!-- DUAL CONSENT & LISTENING BANNER -->
+              <div class="consent-status-banner" style="margin: 1rem 0; padding: 0.8rem; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <span><strong>Driver Consent:</strong> <span id="driverConsentLabel" class="text-danger">OFF</span></span>
+                  <span><strong>Passenger Consent:</strong> <span id="passengerConsentLabel" class="text-danger">OFF</span></span>
+                  <span><strong>Listening Mode:</strong> <span id="listeningModeLabel" class="badge">OFF</span></span>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                  <button type="button" class="btn-sm btn-primary" id="driverConsentToggleBtn">Toggle Driver Consent</button>
+                  <button type="button" class="btn-sm btn-outline" id="startContinuousBtn" disabled>Start Continuous Listening</button>
+                  <button type="button" class="btn-sm btn-secondary" id="stopContinuousBtn" disabled>Stop Continuous</button>
+                </div>
+              </div>
+
+              <!-- QR CODE & PASSENGER LINK -->
+              <div class="qr-display-box" style="text-align: center; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 8px; margin: 1rem 0;">
+                <div id="tripQrSvgContainer" style="display: inline-block; max-width: 180px; margin-bottom: 0.8rem;"></div>
+                <p style="font-size: 0.85rem; color: #aaa;">Passenger scans QR with smartphone camera — No app install required.</p>
+                <div style="display: flex; gap: 0.5rem; justify-content: center; margin-top: 0.5rem;">
+                  <input type="text" id="passengerAccessUrlInput" class="form-control" style="font-size: 0.8rem; max-width: 320px;" readonly />
+                  <button type="button" class="btn-sm btn-outline" id="copyPassengerUrlBtn">Copy Link</button>
+                </div>
+              </div>
+
+              <!-- TRIP LIFECYCLE CONTROLS -->
+              <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button type="button" class="btn-primary" id="startTripBtn">Start Trip</button>
+                <button type="button" class="btn-success" id="completeTripBtn">Complete Trip</button>
+                <button type="button" class="btn-danger" id="cancelTripBtn">Cancel Trip</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- CARD: CREATE NEW TRIP -->
+          <div class="card create-trip-card">
+            <div class="card-header">
+              <h3 class="card-title">Create New Trip</h3>
+            </div>
+            <form id="createTripForm">
+              <div class="field-group">
+                <label for="newTripDestination" class="field-label">Final Destination:</label>
+                <input type="text" id="newTripDestination" class="form-control" placeholder="e.g. Central Railway Station" required />
+              </div>
+              <div class="field-group">
+                <label for="newTripFare" class="field-label">Agreed Fare (₹):</label>
+                <input type="number" id="newTripFare" class="form-control" placeholder="e.g. 250" min="1" step="0.5" required />
+              </div>
+              <div class="field-group">
+                <label for="newTripVehicle" class="field-label">Vehicle Registration Number:</label>
+                <input type="text" id="newTripVehicle" class="form-control" value="TN-01-AB-1234" required />
+              </div>
+              <button type="submit" class="btn-primary" id="submitCreateTripBtn" style="width: 100%;">Create Trip &amp; Generate QR</button>
+            </form>
+          </div>
+
+          <!-- CARD: IN-TRIP MODIFICATION PROPOSAL -->
+          <div class="card trip-proposal-card">
+            <div class="card-header">
+              <h3 class="card-title">Propose Trip Modification</h3>
+            </div>
+            <form id="proposeTripChangeForm">
+              <div class="field-group">
+                <label for="proposalTypeSelect" class="field-label">Modification Type:</label>
+                <select id="proposalTypeSelect" class="form-control">
+                  <option value="DESTINATION_CHANGE">Destination Change</option>
+                  <option value="ADD_STOP">Add Intermediate Stop</option>
+                  <option value="FARE_CHANGE">Fare Adjustment</option>
+                </select>
+              </div>
+              <div class="field-group">
+                <label for="proposalValueInput" class="field-label">New Value:</label>
+                <input type="text" id="proposalValueInput" class="form-control" placeholder="e.g. Airport Terminal 2 or ₹350" required />
+              </div>
+              <div class="field-group">
+                <label for="proposalReasonInput" class="field-label">Reason / Note:</label>
+                <input type="text" id="proposalReasonInput" class="form-control" placeholder="e.g. Traffic diversion, passenger luggage" />
+              </div>
+              <button type="submit" class="btn-secondary" id="submitProposalBtn" style="width: 100%;">Send Proposal to Passenger</button>
+            </form>
+            <div id="activeProposalNotice" class="alert-box info-alert hidden" style="margin-top: 1rem;"></div>
+          </div>
+
+          <!-- CARD: RECORD TRIP PAYMENT & RECONCILIATION -->
+          <div class="card trip-payment-card">
+            <div class="card-header">
+              <h3 class="card-title">Collect Trip Payment</h3>
+            </div>
+            <form id="recordTripPaymentForm">
+              <div class="field-group">
+                <label for="tripPaymentAmount" class="field-label">Amount Collected (₹):</label>
+                <input type="number" id="tripPaymentAmount" class="form-control" placeholder="e.g. 250" min="1" step="0.5" required />
+              </div>
+              <div class="field-group">
+                <label for="tripPaymentMethod" class="field-label">Payment Method:</label>
+                <select id="tripPaymentMethod" class="form-control">
+                  <option value="CASH">Cash</option>
+                  <option value="UPI">UPI / GPay / PhonePe</option>
+                  <option value="CARD">Card / Other</option>
+                </select>
+              </div>
+              <button type="submit" class="btn-success" id="submitTripPaymentBtn" style="width: 100%;">Record Payment &amp; Reconcile Ledger</button>
+            </form>
+          </div>
+
+        </div>
+      </section>
+
     </main>
 
   </div>
@@ -943,6 +1095,7 @@
   <script src="js/documents.js"></script>
   <script src="js/settlement.js"></script>
   <script src="js/vehicle.js"></script>
+  <script src="js/trips.js"></script>
   <script src="js/agent.js"></script>
   <script src="js/app.js"></script>
 

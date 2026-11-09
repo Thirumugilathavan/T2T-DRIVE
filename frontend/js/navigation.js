@@ -12,6 +12,10 @@
       title: "Voice Co-Pilot",
       tagline: "Speak Naturally. Manage Intelligently. Drive Smarter."
     },
+    trips: {
+      title: "Trips & Passenger Agreement",
+      tagline: "Live Trip QR, Mutual Agreement, Continuous Listening & Fair Fare Reconciliation"
+    },
     finance: {
       title: "Finance Dashboard",
       tagline: "Track Collections, Fuel Costs, and Daily Net Earnings"
