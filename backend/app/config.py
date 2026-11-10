@@ -11,10 +11,29 @@ if env_path.exists():
     load_dotenv(dotenv_path=env_path)
 
 
+def parse_bool_env(var_name: str, default: bool = True) -> tuple[bool, str]:
+    """
+    Safely parses boolean environment variables supporting standard conventions:
+    '1', 'true', 'True', 'TRUE', 'yes', 'on', 'enable', 'enabled' -> True
+    '0', 'false', 'False', 'FALSE', 'no', 'off', 'disable', 'disabled' -> False
+    Handles leading/trailing whitespace and surrounding single or double quotes.
+    Returns (bool_value, diagnostic_source_string).
+    """
+    raw = os.getenv(var_name)
+    if raw is None:
+        return default, f"default ({default})"
+    cleaned = raw.strip().strip("\"'").strip().lower()
+    if cleaned in ("1", "true", "t", "yes", "y", "on", "enable", "enabled"):
+        return True, f"env:{var_name}='{raw.strip()}' -> True"
+    if cleaned in ("0", "false", "f", "no", "n", "off", "disable", "disabled", ""):
+        return False, f"env:{var_name}='{raw.strip()}' -> False"
+    return default, f"env:{var_name}='{raw.strip()}' (unrecognized, using default {default})"
+
+
 class Config:
     """Base Configuration with deterministic defaults."""
-    ENV = os.getenv("FLASK_ENV", "development")
-    DEBUG = os.getenv("FLASK_DEBUG", "0") == "1"
+    ENV = os.getenv("FLASK_ENV", "production" if os.getenv("RENDER") else "development").lower()
+    DEBUG = parse_bool_env("FLASK_DEBUG", default=False)[0]
     TESTING = False
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-t2t-drive-2026")
     PORT = int(os.getenv("PORT", "5000"))
@@ -34,9 +53,15 @@ class Config:
     if _render_url and _render_url.strip() not in ALLOWED_ORIGINS:
         ALLOWED_ORIGINS.append(_render_url.strip())
 
-    # MongoDB Atlas
-    MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017/t2t_drive")
-    DB_NAME = os.getenv("DB_NAME", "t2t_drive")
+    # MongoDB Atlas (supports MONGODB_URI, MONGO_URI, and MONGODB_URL with whitespace/quote stripping)
+    _mongo_env = (
+        os.getenv("MONGODB_URI")
+        or os.getenv("MONGO_URI")
+        or os.getenv("MONGODB_URL")
+        or "mongodb://localhost:27017/t2t_drive"
+    )
+    MONGODB_URI = _mongo_env.strip().strip("\"'")
+    DB_NAME = os.getenv("DB_NAME", "t2t_drive").strip().strip("\"'")
 
     # JWT Authentication
     JWT_SECRET = os.getenv("JWT_SECRET", "jwt-secret-t2t-drive-key-2026")
@@ -68,12 +93,12 @@ class Config:
     LLM_INFERENCE_URL = os.getenv("LLM_INFERENCE_URL", os.getenv("GNANI_EVON_INFERENCE_URL", "http://localhost:8000/v1/chat/completions"))
     LLM_MODEL = os.getenv("LLM_MODEL", os.getenv("GNANI_EVON_MODEL_NAME", "gnani-evon"))
     AI_EXTRACTION_MODE = os.getenv("AI_EXTRACTION_MODE", "rule_based").lower()
-    AI_EXTRACTION_ENABLED = os.getenv("AI_EXTRACTION_ENABLED", "0") == "1"
+    AI_EXTRACTION_ENABLED = parse_bool_env("AI_EXTRACTION_ENABLED", default=False)[0]
 
     # Voice Pipeline Configuration (Phase 4)
-    VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "live" if os.getenv("GNANI_API_KEY") else "mock").lower()
-    GNANI_PRISMA_ENABLED = os.getenv("GNANI_PRISMA_ENABLED", "1") == "1"
-    GNANI_TIMBRE_ENABLED = os.getenv("GNANI_TIMBRE_ENABLED", "1") == "1"
+    VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "live" if os.getenv("GNANI_API_KEY") else "mock").lower().strip().strip("\"'")
+    GNANI_PRISMA_ENABLED = parse_bool_env("GNANI_PRISMA_ENABLED", default=True)[0]
+    GNANI_TIMBRE_ENABLED = parse_bool_env("GNANI_TIMBRE_ENABLED", default=True)[0]
     VOICE_MAX_UPLOAD_MB = int(os.getenv("VOICE_MAX_UPLOAD_MB", "10"))
     VOICE_MAX_DURATION_SECONDS = int(os.getenv("VOICE_MAX_DURATION_SECONDS", "60"))
     VOICE_TEMP_DIRECTORY = os.getenv("VOICE_TEMP_DIRECTORY", "")
@@ -84,16 +109,16 @@ class Config:
     DOCUMENT_MAX_UPLOAD_MB = int(os.getenv("DOCUMENT_MAX_UPLOAD_MB", "10"))
     DOCUMENT_ALLOWED_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg"]
     DOCUMENT_EXPIRY_THRESHOLDS = [30, 15, 7, 1, 0]
-    OCR_ENABLED = os.getenv("OCR_ENABLED", "1") == "1"
+    OCR_ENABLED = parse_bool_env("OCR_ENABLED", default=True)[0]
     OCR_PROVIDER = os.getenv("OCR_PROVIDER", "mock")
     REMINDER_NOTIFICATION_MODE = os.getenv("REMINDER_NOTIFICATION_MODE", "mock")
 
     # Phase 6: Advanced Noise-Aware Speech Intelligence & Quality Analysis
-    AUDIO_NOISE_ANALYSIS_ENABLED = os.getenv("AUDIO_NOISE_ANALYSIS_ENABLED", "1") == "1"
-    AUDIO_SNR_ENABLED = os.getenv("AUDIO_SNR_ENABLED", "1") == "1"
-    AUDIO_VAD_ENABLED = os.getenv("AUDIO_VAD_ENABLED", "1") == "1"
-    AUDIO_ADAPTIVE_PREPROCESSING_ENABLED = os.getenv("AUDIO_ADAPTIVE_PREPROCESSING_ENABLED", "1") == "1"
-    AUDIO_NOISE_REDUCTION_ENABLED = os.getenv("AUDIO_NOISE_REDUCTION_ENABLED", "1") == "1"
+    AUDIO_NOISE_ANALYSIS_ENABLED = parse_bool_env("AUDIO_NOISE_ANALYSIS_ENABLED", default=True)[0]
+    AUDIO_SNR_ENABLED = parse_bool_env("AUDIO_SNR_ENABLED", default=True)[0]
+    AUDIO_VAD_ENABLED = parse_bool_env("AUDIO_VAD_ENABLED", default=True)[0]
+    AUDIO_ADAPTIVE_PREPROCESSING_ENABLED = parse_bool_env("AUDIO_ADAPTIVE_PREPROCESSING_ENABLED", default=True)[0]
+    AUDIO_NOISE_REDUCTION_ENABLED = parse_bool_env("AUDIO_NOISE_REDUCTION_ENABLED", default=True)[0]
     AUDIO_MAX_RETRIES = int(os.getenv("AUDIO_MAX_RETRIES", "3"))
     AUDIO_QUALITY_THRESHOLD = os.getenv("AUDIO_QUALITY_THRESHOLD", "POOR")
     AUDIO_MIN_SPEECH_DURATION = float(os.getenv("AUDIO_MIN_SPEECH_DURATION", "0.2"))
@@ -121,9 +146,9 @@ class TestingConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
-    VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "live" if os.getenv("GNANI_API_KEY") else "mock").lower()
-    GNANI_PRISMA_ENABLED = os.getenv("GNANI_PRISMA_ENABLED", "1") == "1"
-    GNANI_TIMBRE_ENABLED = os.getenv("GNANI_TIMBRE_ENABLED", "1") == "1"
+    VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "live" if os.getenv("GNANI_API_KEY") else "mock").lower().strip().strip("\"'")
+    GNANI_PRISMA_ENABLED = parse_bool_env("GNANI_PRISMA_ENABLED", default=True)[0]
+    GNANI_TIMBRE_ENABLED = parse_bool_env("GNANI_TIMBRE_ENABLED", default=True)[0]
 
     @classmethod
     def validate(cls):
@@ -169,5 +194,11 @@ config_by_name = {
 
 
 def get_config():
-    env = os.getenv("FLASK_ENV", "development").lower()
-    return config_by_name.get(env, DevelopmentConfig)
+    env = os.getenv("FLASK_ENV")
+    if not env:
+        # Detect Render or cloud production environment
+        if os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID"):
+            env = "production"
+        else:
+            env = "development"
+    return config_by_name.get(env.lower(), DevelopmentConfig)

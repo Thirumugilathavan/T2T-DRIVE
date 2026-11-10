@@ -47,6 +47,19 @@ class DatabaseManager:
             except ImportError:
                 logger.warning("mongomock not installed, attempting standard MongoClient for testing.")
 
+        # Enforce Production Database Requirement: Disallow localhost fallback in production
+        is_prod = app.config.get("ENV", "development").lower() == "production" or bool(os.getenv("RENDER"))
+        if is_prod and not testing and ("localhost" in uri or "127.0.0.1" in uri):
+            logger.critical(
+                "FATAL: Production environment detected, but MongoDB URI points to localhost (%s). "
+                "Configure MONGODB_URI or MONGO_URI with your MongoDB Atlas connection string in Render.",
+                uri
+            )
+            raise ConnectionError(
+                "Production environment requires a valid MongoDB Atlas connection string (MONGODB_URI or MONGO_URI). "
+                "Localhost database connection is strictly prohibited in production."
+            )
+
         try:
             # Set a 3-second server selection timeout to avoid hanging if DB is unreachable
             self.client = MongoClient(uri, serverSelectionTimeoutMS=3000)
@@ -57,7 +70,7 @@ class DatabaseManager:
             logger.info("Successfully connected to MongoDB Atlas database: %s", db_name)
         except (ConnectionFailure, ServerSelectionTimeoutError) as err:
             env = app.config.get("ENV", "development").lower()
-            if env == "production":
+            if is_prod:
                 self.db = None
                 self._is_mock = False
                 logger.critical(

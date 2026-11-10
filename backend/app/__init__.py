@@ -5,6 +5,7 @@ Phase 3 LangGraph Conversational Agent, Phase 4 Voice Integration (Prisma & Timb
 and Phase 5 Document Management, Challan Assistance, and Vehicle Maintenance.
 """
 
+import os
 import logging
 from flask import Flask
 from flask_cors import CORS
@@ -211,6 +212,44 @@ def create_app(config_name=None, db=None):
     gnani_key = app.config.get("GNANI_API_KEY", "").strip()
     prisma_enabled = bool(app.config.get("GNANI_PRISMA_ENABLED", False))
     timbre_enabled = bool(app.config.get("GNANI_TIMBRE_ENABLED", False))
+
+    # Safe Startup Diagnostics (Secrets, API keys, and database passwords strictly excluded)
+    from app.config import parse_bool_env
+    _, prisma_src = parse_bool_env("GNANI_PRISMA_ENABLED", default=True)
+    _, timbre_src = parse_bool_env("GNANI_TIMBRE_ENABLED", default=True)
+    mongo_raw = os.getenv("MONGODB_URI") or os.getenv("MONGO_URI") or os.getenv("MONGODB_URL")
+    mongo_src = "MONGODB_URI" if os.getenv("MONGODB_URI") else ("MONGO_URI" if os.getenv("MONGO_URI") else ("MONGODB_URL" if os.getenv("MONGODB_URL") else "default (localhost:27017)"))
+    mongo_scheme = mongo_raw.split("://")[0] if (mongo_raw and "://" in mongo_raw) else "none"
+
+    logger.info("==================== T2T-DRIVE STARTUP DIAGNOSTICS ====================")
+    logger.info(
+        "[STARTUP] Environment: %s (RENDER=%s, FLASK_ENV=%s)",
+        app.config.get("ENV"),
+        bool(os.getenv("RENDER")),
+        os.getenv("FLASK_ENV", "unset")
+    )
+    logger.info("[STARTUP] Voice Provider Mode: %s", voice_mode)
+    logger.info(
+        "[STARTUP] GNANI_API_KEY: configured=%s (length=%d, secret hidden)",
+        bool(gnani_key),
+        len(gnani_key) if gnani_key else 0
+    )
+    logger.info(
+        "[STARTUP] GNANI_PRISMA_ENABLED: %s (resolved from %s)",
+        prisma_enabled,
+        prisma_src
+    )
+    logger.info(
+        "[STARTUP] GNANI_TIMBRE_ENABLED: %s (resolved from %s)",
+        timbre_enabled,
+        timbre_src
+    )
+    logger.info(
+        "[STARTUP] Database URI: source=%s, scheme=%s (credentials hidden)",
+        mongo_src,
+        mongo_scheme
+    )
+    logger.info("=======================================================================")
 
     if voice_mode == "live":
         # Strict validation: Live mode requires GNANI_API_KEY; no silent fallback to mock is permitted

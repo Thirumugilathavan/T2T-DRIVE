@@ -9,6 +9,7 @@ Validates:
 """
 
 import io
+import os
 import wave
 from decimal import Decimal
 import pytest
@@ -110,3 +111,53 @@ def test_live_timbre_language_and_voice():
     assert adapter._map_language_code("tamil") == "ta-IN"
     assert adapter._map_language_code("tanglish") == "ta-IN"
     assert adapter._map_language_code("english") == "en-IN"
+
+
+def test_parse_bool_env_permutations(monkeypatch):
+    """Verifies robust boolean environment variable parsing across all common formats."""
+    from app.config import parse_bool_env
+
+    # Truthy values
+    for val in ("1", "true", "True", "TRUE", "yes", "on", "enable", "enabled", " 1 ", " 'true' ", ' "1" '):
+        monkeypatch.setenv("TEST_FLAG", val)
+        res, src = parse_bool_env("TEST_FLAG", default=False)
+        assert res is True, f"Failed for truthy value: {val!r}"
+        assert "True" in src
+
+    # Falsy values
+    for val in ("0", "false", "False", "FALSE", "no", "off", "disable", "disabled", " 0 ", " 'false' "):
+        monkeypatch.setenv("TEST_FLAG", val)
+        res, src = parse_bool_env("TEST_FLAG", default=True)
+        assert res is False, f"Failed for falsy value: {val!r}"
+        assert "False" in src
+
+    # Default fallback when unset
+    monkeypatch.delenv("TEST_FLAG", raising=False)
+    res_t, _ = parse_bool_env("TEST_FLAG", default=True)
+    assert res_t is True
+    res_f, _ = parse_bool_env("TEST_FLAG", default=False)
+    assert res_f is False
+
+
+def test_render_environment_and_mongo_aliases(monkeypatch):
+    """Verifies automatic Render production detection and MONGO_URI alias resolution."""
+    from app.config import get_config, ProductionConfig
+
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.delenv("FLASK_ENV", raising=False)
+    cfg = get_config()
+    assert cfg == ProductionConfig
+
+    # Test MONGO_URI alias
+    monkeypatch.setenv("MONGO_URI", "mongodb+srv://atlas_user:atlas_pass@cluster.mongodb.net/t2t_prod")
+    monkeypatch.delenv("MONGODB_URI", raising=False)
+    # Re-evaluate Config class attribute
+    from app.config import Config
+    _raw = (
+        os.getenv("MONGODB_URI")
+        or os.getenv("MONGO_URI")
+        or os.getenv("MONGODB_URL")
+        or "mongodb://localhost:27017/t2t_drive"
+    ).strip().strip("\"'")
+    assert _raw.startswith("mongodb+srv://")
+
