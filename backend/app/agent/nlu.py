@@ -94,16 +94,16 @@ def parse_numeric_amount(text: str) -> Optional[Decimal]:
     or Tamil/Tanglish number words.
     """
     digit_patterns = [
-        r'(?:(?:rs|inr|₹|ரூ)\.?\s*)(\d+(?:\.\d{1,2})?)',  # ₹500, rs 500
-        r'(\d+(?:\.\d{1,2})?)\s*(?:rs|inr|ruba|rubai|rooba|roobai|rupees|ரூபாய்|ரூ)',  # 500 rs, 500 ruba
-        r'\b(\d+(?:\.\d{1,2})?)\b'  # standalone number
+        r'(?:(?:rs|inr|₹|ரூ)\.?\s*)(\d+(?:,\d{3})*(?:\.\d{1,2})?)',  # ₹500, rs 500, ₹1,500
+        r'(\d+(?:,\d{3})*(?:\.\d{1,2})?)\s*(?:rs|inr|ruba|rubai|rooba|roobai|rupees|ரூபாய்|ரூ)',  # 500 rs, 1,500 ruba
+        r'\b(\d+(?:,\d{3})*(?:\.\d{1,2})?)\b'  # standalone number
     ]
     
     clean_text = text.lower()
     for pat in digit_patterns:
         match = re.search(pat, clean_text)
         if match:
-            val_str = match.group(1)
+            val_str = match.group(1).replace(",", "")
             try:
                 val = Decimal(val_str)
                 if val > 0:
@@ -163,7 +163,7 @@ INCOME_CATEGORY_KEYWORDS = {
 
 OWNER_PAYMENT_KEYWORDS = [
     "owner", "vaadagai", "owner rent", "owner payment", "settlement payment",
-    "ஓனர்", "வாடகை", "ஓனர் வாடகை", "முதலாளி"
+    "ஓனர்", "வாடகை", "ஓனர் வாடகை", "முதலாளி", "ஓனக்கு", "ஓனருக்கு"
 ]
 
 
@@ -297,14 +297,16 @@ class MultilingualNLU:
         all_entry_kws = sorted(set(all_entry_kws), key=lambda x: len(x), reverse=True)
 
         # 1. Delimiter-based splitting (commas, semicolons, conjunctions)
+        # Normalize commas inside numbers (e.g. 1,500 -> 1500) so they are not treated as delimiters
+        normalized_text = re.sub(r'(\d+),(\d+)', r'\1\2', text)
         delimiters = r"[,;]|\band\b|\bapram\b|\bappuram\b|\bpinbu\b|\bmatrum\b"
-        raw_segments = [p.strip() for p in re.split(delimiters, text, flags=re.IGNORECASE) if p.strip()]
+        raw_segments = [p.strip() for p in re.split(delimiters, normalized_text, flags=re.IGNORECASE) if p.strip()]
 
         # 2. If single segment but multiple numbers exist, split by keyword boundaries
-        amounts_in_text = re.findall(r"\b\d+(?:\.\d{1,2})?\b", text)
+        amounts_in_text = re.findall(r"\b\d+(?:\.\d{1,2})?\b", normalized_text)
         if len(raw_segments) <= 1 and len(amounts_in_text) > 1:
             kw_pattern = r"(\b(?:" + "|".join(re.escape(k) for k in all_entry_kws) + r")\b)"
-            tokens = re.split(kw_pattern, text, flags=re.IGNORECASE)
+            tokens = re.split(kw_pattern, normalized_text, flags=re.IGNORECASE)
             segments = []
             current = ""
             for tok in tokens:

@@ -71,7 +71,7 @@ class Config:
     AI_EXTRACTION_ENABLED = os.getenv("AI_EXTRACTION_ENABLED", "0") == "1"
 
     # Voice Pipeline Configuration (Phase 4)
-    VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "mock").lower()
+    VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "live" if os.getenv("GNANI_API_KEY") else "mock").lower()
     GNANI_PRISMA_ENABLED = os.getenv("GNANI_PRISMA_ENABLED", "1") == "1"
     GNANI_TIMBRE_ENABLED = os.getenv("GNANI_TIMBRE_ENABLED", "1") == "1"
     VOICE_MAX_UPLOAD_MB = int(os.getenv("VOICE_MAX_UPLOAD_MB", "10"))
@@ -121,7 +121,7 @@ class TestingConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
-    VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "live").lower()
+    VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "live" if os.getenv("GNANI_API_KEY") else "mock").lower()
     GNANI_PRISMA_ENABLED = os.getenv("GNANI_PRISMA_ENABLED", "1") == "1"
     GNANI_TIMBRE_ENABLED = os.getenv("GNANI_TIMBRE_ENABLED", "1") == "1"
 
@@ -151,7 +151,7 @@ class ProductionConfig(Config):
             )
 
         # Enforce Real Gnani AI Voice Configuration in Live Production Mode
-        voice_mode = os.getenv("VOICE_PROVIDER_MODE", "live").lower()
+        voice_mode = os.getenv("VOICE_PROVIDER_MODE", "live" if os.getenv("GNANI_API_KEY") else "mock").lower()
         if voice_mode == "live":
             gnani_key = os.getenv("GNANI_API_KEY", "").strip()
             if not gnani_key or gnani_key.startswith("dev-") or gnani_key.startswith("mock-") or len(gnani_key) < 8:

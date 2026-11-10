@@ -194,19 +194,26 @@ def speak():
 def capabilities():
     """Public capability discovery endpoint (no credentials leaked)."""
     cfg = current_app.config
-    mode = cfg.get("VOICE_PROVIDER_MODE", "mock")
-    prisma_live = bool(cfg.get("GNANI_API_KEY") and cfg.get("GNANI_PRISMA_ENABLED"))
-    timbre_live = bool(cfg.get("GNANI_API_KEY") and cfg.get("GNANI_TIMBRE_ENABLED"))
+    mode = cfg.get("VOICE_PROVIDER_MODE", "mock").lower()
+    has_key = bool(cfg.get("GNANI_API_KEY", "").strip())
+    prisma_enabled = bool(cfg.get("GNANI_PRISMA_ENABLED", False))
+    timbre_enabled = bool(cfg.get("GNANI_TIMBRE_ENABLED", False))
+
+    prisma_live = bool(mode == "live" and has_key and prisma_enabled)
+    timbre_live = bool(mode == "live" and has_key and timbre_enabled)
+
+    prisma_status = "LIVE" if prisma_live else ("MOCK" if mode == "mock" else "ERROR")
+    timbre_status = "LIVE" if timbre_live else ("MOCK" if mode == "mock" else "ERROR")
 
     return success_response({
         "provider_mode": mode,
         "prisma_stt": {
-            "status": "LIVE" if prisma_live else "MOCK",
+            "status": prisma_status,
             "model": "prisma-v3.0",
             "supported_languages": ["ta-IN", "en-IN", "indic-auto", "tanglish"]
         },
         "timbre_tts": {
-            "status": "LIVE" if timbre_live else "MOCK",
+            "status": timbre_status,
             "model": "timbre-v2.5",
             "voices": ["Kaveri", "Nalini", "Shivani"]
         },

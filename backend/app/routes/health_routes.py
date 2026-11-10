@@ -15,9 +15,10 @@ def health_check():
 
     environment = "production" if (os.getenv("RENDER") or cfg.get("ENV") == "production") else cfg.get("ENV", "development")
 
-    voice_mode = cfg.get("VOICE_PROVIDER_MODE", "mock")
-    prisma_live = bool(cfg.get("GNANI_API_KEY") and cfg.get("GNANI_PRISMA_ENABLED"))
-    timbre_live = bool(cfg.get("GNANI_API_KEY") and cfg.get("GNANI_TIMBRE_ENABLED"))
+    voice_mode = cfg.get("VOICE_PROVIDER_MODE", "mock").lower()
+    has_key = bool(cfg.get("GNANI_API_KEY", "").strip())
+    prisma_live = bool(voice_mode == "live" and has_key and cfg.get("GNANI_PRISMA_ENABLED"))
+    timbre_live = bool(voice_mode == "live" and has_key and cfg.get("GNANI_TIMBRE_ENABLED"))
     llm_configured = bool(cfg.get("LLM_API_KEY"))
 
     data = {

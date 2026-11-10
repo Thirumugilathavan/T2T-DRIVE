@@ -59,6 +59,13 @@ class AudioPreprocessor:
                         sample_width = wf.getsampwidth()
                         num_frames = wf.getnframes()
 
+                        # Guard against streaming WAV headers where num_frames is set to 0x7FFFFFFF (2147483647)
+                        # or exceeds the actual buffer length
+                        bytes_per_frame = channels * sample_width if (channels and sample_width) else 2
+                        actual_max_frames = (len(audio_bytes) - 44) // bytes_per_frame if bytes_per_frame > 0 else 0
+                        if num_frames > actual_max_frames:
+                            num_frames = max(0, actual_max_frames)
+
                         duration = num_frames / float(sample_rate) if sample_rate > 0 else 0.0
 
                         result["duration_seconds"] = round(duration, 2)
