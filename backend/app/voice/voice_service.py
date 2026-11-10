@@ -284,18 +284,27 @@ class VoiceService:
                 logger.warning("TTS generation failed (falling back to text): %s", tts_res.error)
                 tts_status = "ERROR"
 
+        active_pending_act = agent_result.get("active_pending_action")
+        pending_act_id = agent_result.get("pending_id") or (
+            active_pending_act.get("pending_action_id") if active_pending_act else None
+        )
+        agent_msg_text = agent_result.get("message", "")
+
         return VoiceTurnResponse(
             session_id=agent_result.get("session_id", session_id or ""),
             transcript=stt_res.transcript,
             detected_language=stt_res.detected_language,
             confidence=stt_res.confidence,
             stt_provider=stt_res.provider,
-            agent_message=agent_result.get("message", ""),
+            agent_message=agent_msg_text,
             agent_voice_text=agent_result.get("voice_text", ""),
+            reply_text=agent_msg_text,
+            pending_id=pending_act_id,
+            entities=agent_result.get("entities"),
             intent=agent_result.get("intent"),
             slots=agent_result.get("slots", {}),
             next_step=agent_result.get("next_step", "IDLE"),
-            active_pending_action=agent_result.get("active_pending_action"),
+            active_pending_action=active_pending_act,
             execution_result=agent_result.get("execution_result"),
             tts_audio_base64=tts_base64,
             tts_provider=tts_provider,

@@ -171,6 +171,7 @@ def get_challan_file(challan_id: str):
 
 
 @challan_bp.route("/<challan_id>/payment", methods=["POST"])
+@challan_bp.route("/<challan_id>/pay", methods=["POST"])
 @token_required
 def pay_challan(challan_id: str):
     """Records payment information for a challan."""

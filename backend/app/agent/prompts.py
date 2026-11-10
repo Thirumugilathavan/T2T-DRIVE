@@ -507,3 +507,103 @@ def prompt_trip_payment_confirmed(amount: Any, outstanding: Any, language: str =
             "text": f"₹{amt} payment collect aachu. Balance: ₹{out}.",
             "voice": f"Roobai {amt} payment collect aachu. Balance roobai {out}."
         }
+
+
+def prompt_batch_proposal_confirmation(
+    transactions: List[Dict[str, Any]],
+    vehicle_id: str,
+    language: str = "tanglish"
+) -> Dict[str, str]:
+    """Generates batch confirmation prompt for multi-transaction utterances."""
+    inc_parts = [t for t in transactions if t.get("action_type") in ("ADD_INCOME", "INCOME")]
+    exp_parts = [t for t in transactions if t.get("action_type") in ("ADD_EXPENSE", "EXPENSE")]
+    own_parts = [t for t in transactions if t.get("action_type") in ("ADD_OWNER_PAYMENT", "OWNER_PAYMENT")]
+
+    desc_en = []
+    desc_ta = []
+    desc_tang = []
+
+    for t in inc_parts:
+        amt = format_inr(t.get("amount", 0))
+        cat = t.get("category", "Collection").replace("_", " ").title()
+        desc_en.append(f"earned ₹{amt} from {cat.lower()}")
+        desc_ta.append(f"{cat}-ல் ₹{amt} வரவு")
+        desc_tang.append(f"{cat.lower()} ₹{amt} varavu")
+
+    for t in exp_parts:
+        amt = format_inr(t.get("amount", 0))
+        cat = t.get("category", "Expense").replace("_", " ").title()
+        desc_en.append(f"spent ₹{amt} on {cat.lower()}")
+        desc_ta.append(f"{cat}-க்கு ₹{amt} செலவு")
+        desc_tang.append(f"{cat.lower()} ₹{amt} selavu")
+
+    for t in own_parts:
+        amt = format_inr(t.get("amount", 0))
+        desc_en.append(f"paid ₹{amt} to the owner")
+        desc_ta.append(f"ஓனருக்கு ₹{amt} கொடுக்கப்பட்டது")
+        desc_tang.append(f"owner-ku ₹{amt} kudutheergal")
+
+    if language == "tamil":
+        summary = ", ".join(desc_ta)
+        text = f"நீங்கள் {summary}. இந்த பதிவுகளை சேமிக்கவா? 'ஆம்' அல்லது 'வேண்டாம்' என்று கூறவும்."
+        voice = f"நீங்கள் {summary}. இந்த பதிவுகளை சேமிக்கவா? ஆம் அல்லது வேண்டாம் என்று சொல்லுங்கள்."
+    elif language == "english":
+        summary = ", ".join(desc_en)
+        text = f"You {summary}. Shall I save these transactions? Reply 'Confirm' or 'Cancel'."
+        voice = f"You {summary}. Shall I save these transactions? Reply confirm or cancel."
+    else:  # tanglish
+        summary = ", ".join(desc_tang)
+        text = f"Neenga {summary}. Indha transactions-ai save seiyalama? 'Confirm' or 'Cancel' nu sollunga."
+        voice = f"Neenga {summary}. Indha transactions-ai save seiyalama? Confirm or cancel nu sollunga."
+
+    return {"text": text, "voice": voice}
+
+def prompt_batch_execution_success(
+    transactions: List[Dict[str, Any]],
+    vehicle_id: str,
+    language: str = "tanglish"
+) -> Dict[str, str]:
+    """Generates success prompt after executing batch transactions."""
+    count = len(transactions)
+    if language == "tamil":
+        text = f"சரி! அனைத்து {count} பதிவுகளும் லெட்ஜரில் வெற்றிகரமாக பதிவு செய்யப்பட்டன."
+        voice = f"சரி! அனைத்து {count} பதிவுகளும் வெற்றிகரமாக பதிவு செய்யப்பட்டன."
+    elif language == "english":
+        text = f"Done! Successfully recorded all {count} transactions into the ledger."
+        voice = f"Done! Successfully recorded all {count} transactions."
+    else:
+        text = f"Sari! Anaithu {count} transactions-um ledger-il vetrikaramaga pathivu seiyappattadhu."
+        voice = f"Sari! Anaithu {count} transactions-um vetrikaramaga pathivu seiyappattadhu."
+    return {"text": text, "voice": voice}
+
+def prompt_partial_execution_success(
+    category: str,
+    amount: Any,
+    language: str = "tanglish"
+) -> Dict[str, str]:
+    """Generates response when user partially confirms a specific item."""
+    amt = format_inr(amount)
+    cat = category.replace("_", " ").title()
+    if language == "tamil":
+        text = f"சரி! {cat} ₹{amt} மட்டும் லெட்ஜரில் பதிவு செய்யப்பட்டது. மற்ற பதிவுகள் தவிர்க்கப்பட்டன."
+        voice = f"சரி! {cat} ரூபாய் {amt} மட்டும் பதிவு செய்யப்பட்டது."
+    elif language == "english":
+        text = f"Done! Recorded ₹{amt} for {cat} into the ledger. Other transactions were not saved."
+        voice = f"Done! Recorded {amt} rupees for {cat}."
+    else:
+        text = f"Sari! {cat} ₹{amt} mattum ledger-il pathivu seiyappattadhu. Mathavai thavirkappattadhu."
+        voice = f"Sari! {cat} roobai {amt} mattum pathivu seiyappattadhu."
+    return {"text": text, "voice": voice}
+
+def prompt_clarify_confirmation(language: str = "tanglish") -> Dict[str, str]:
+    """Generates prompt when confirmation response is ambiguous."""
+    if language == "tamil":
+        text = "புரியவில்லை. இந்த பதிவுகளை சேமிக்க 'ஆம்' அல்லது 'உறுதி' எனவும், ரத்து செய்ய 'வேண்டாம்' எனவும் கூறவும்."
+        voice = "புரியவில்லை. சேமிக்க ஆம் எனவும், ரத்து செய்ய வேண்டாம் எனவும் சொல்லுங்கள்."
+    elif language == "english":
+        text = "I didn't quite catch that. Please say 'yes' or 'confirm' to save these transactions, or 'no' or 'cancel' to discard them."
+        voice = "I didn't quite catch that. Please say confirm to save, or cancel to discard."
+    else:
+        text = "Puriyavillai. Indha transactions-ai save seiyya 'confirm' nu sollunga, illana 'cancel' nu sollunga."
+        voice = "Puriyavillai. Save seiyya confirm nu sollunga, illana cancel nu sollunga."
+    return {"text": text, "voice": voice}

@@ -29,3 +29,14 @@ htmlcov/
 *.wav
 *.mp3
 *.ogg
+
+# Local test artifacts and scratch runners
+backend/tests/audio_preview/
+backend/tests/*.png
+backend/tests/*_result.json
+backend/tests/*_report.json
+backend/tests/stage1_results.json
+backend/tests/offline_audit_results.json
+backend/tests/run_*.py
+backend/tests/offline_voice_integration_audit.py
+

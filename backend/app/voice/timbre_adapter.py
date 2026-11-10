@@ -184,6 +184,8 @@ class TimbreAdapter(TimbreAdapterBase):
     def _map_language_code(lang: str) -> str:
         """Normalizes language code for Timbre catalog."""
         l = lang.lower().strip()
+        if l in ("auto", "indic-auto"):
+            return "auto"
         if "en" in l:
             return "en-IN"
         return "ta-IN"
@@ -262,3 +264,27 @@ class MockTimbreAdapter(TimbreAdapterBase):
             wf.writeframes(b"".join(samples))
 
         return bio.getvalue()
+
+
+class DisabledTimbreAdapter(TimbreAdapterBase):
+    """Adapter used when Timbre TTS is explicitly disabled via GNANI_TIMBRE_ENABLED=0."""
+
+    def __init__(self, reason: str = "Gnani Timbre TTS is disabled by configuration (GNANI_TIMBRE_ENABLED=0)."):
+        self.reason = reason
+
+    def synthesize(
+        self,
+        text: str,
+        language: str = "ta-IN",
+        voice: str = "Kaveri",
+        speed: float = 1.0,
+        output_format: str = "wav"
+    ) -> TTSResponse:
+        return TTSResponse(
+            audio_bytes=None,
+            audio_base64=None,
+            content_type="audio/wav",
+            provider="gnani_timbre_disabled",
+            processing_status="ERROR",
+            error=self.reason
+        )

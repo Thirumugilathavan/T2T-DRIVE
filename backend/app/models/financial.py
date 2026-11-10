@@ -81,6 +81,7 @@ class PendingActionType(str, Enum):
     CREATE_REVERSAL = "CREATE_REVERSAL"
     CREATE_SETTLEMENT = "CREATE_SETTLEMENT"
     RECALCULATE_SETTLEMENT = "RECALCULATE_SETTLEMENT"
+    ADD_BATCH_TRANSACTIONS = "ADD_BATCH_TRANSACTIONS"
 
 
 # ============================================================================

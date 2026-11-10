@@ -307,3 +307,70 @@ class DocumentService:
         # Do not expose raw storage path
         d.pop("file_reference", None)
         return d
+
+    def extract_from_upload(
+        self,
+        file_bytes: bytes,
+        filename: str
+    ) -> Dict[str, Any]:
+        """
+        Runs mock OCR preview on uploaded vehicle/driver document image or PDF.
+        Extracts candidate fields for human review before saving.
+        Note: Output is explicitly labeled as unverified simulated OCR.
+        """
+        if not file_bytes or len(file_bytes) < 4:
+            raise ValueError("Uploaded document file is empty or corrupt.")
+
+        lower_name = (filename or "document.jpg").lower()
+        allowed_exts = {".pdf", ".jpg", ".jpeg", ".png", ".webp"}
+        if not any(lower_name.endswith(ext) for ext in allowed_exts):
+            raise ValueError(f"Unsupported document file format for '{filename}'. Allowed: PDF, JPG, PNG, WEBP.")
+
+        file_ref, size, mime = self.storage.save_file(file_bytes=file_bytes, original_filename=filename)
+
+        curr_year = datetime.date.today().year
+        if "insur" in lower_name or "policy" in lower_name:
+            doc_type = "INSURANCE_POLICY"
+            doc_number = f"POL-{secrets.token_hex(4).upper()}"
+            expiry = f"{curr_year + 1}-03-31"
+            authority = "United India Insurance"
+        elif "fc" in lower_name or "fit" in lower_name:
+            doc_type = "FITNESS_CERTIFICATE"
+            doc_number = f"FC-{secrets.token_hex(4).upper()}"
+            expiry = f"{curr_year + 1}-06-30"
+            authority = "Regional Transport Office (RTO)"
+        elif "poll" in lower_name or "puc" in lower_name:
+            doc_type = "POLLUTION_CERTIFICATE"
+            doc_number = f"PUC-{secrets.token_hex(4).upper()}"
+            expiry = f"{curr_year}-12-31"
+            authority = "Authorized Emission Testing Center"
+        elif "dl" in lower_name or "licen" in lower_name:
+            doc_type = "DRIVING_LICENSE"
+            doc_number = f"TN01{secrets.token_hex(4).upper()}"
+            expiry = f"{curr_year + 5}-10-15"
+            authority = "Licensing Authority Chennai"
+        elif "permit" in lower_name:
+            doc_type = "PERMIT"
+            doc_number = f"PER-{secrets.token_hex(4).upper()}"
+            expiry = f"{curr_year + 2}-08-20"
+            authority = "State Transport Authority"
+        else:
+            doc_type = "REGISTRATION_CERTIFICATE"
+            doc_number = f"TN01AB{secrets.token_hex(2).upper()}"
+            expiry = f"{curr_year + 10}-12-31"
+            authority = "RTO Chennai Central"
+
+        return {
+            "document_type": doc_type,
+            "document_number": doc_number,
+            "expiry_date": expiry,
+            "vehicle_id": "TN-01-AB-1234",
+            "issuing_authority": authority,
+            "confidence": 0.89,
+            "needs_human_review": True,
+            "ocr_provider": "mock_ocr",
+            "ocr_disclaimer": "OCR data is simulated/unverified and requires explicit driver confirmation before saving.",
+            "file_reference": file_ref,
+            "file_type": mime,
+            "file_size_bytes": size
+        }

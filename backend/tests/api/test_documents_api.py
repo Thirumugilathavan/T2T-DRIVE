@@ -108,3 +108,31 @@ def test_compliance_status_api(client):
     data = res.get_json()["data"]
     assert "compliance_status" in data
     assert "total_documents" in data
+
+
+def test_document_ocr_preview_api(client):
+    token, _ = get_driver_token(client, "9876543507")
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # 1. Successful OCR preview on PDF
+    fake_pdf = b"%PDF-1.4\nInsurance Policy Schedule\n%%EOF"
+    res = client.post(
+        "/api/documents/ocr-preview",
+        headers=headers,
+        data={"file": (io.BytesIO(fake_pdf), "policy_schedule.pdf")},
+        content_type="multipart/form-data"
+    )
+    assert res.status_code == 200
+    data = res.get_json()["data"]
+    assert data["document_type"] == "INSURANCE_POLICY"
+    assert data["needs_human_review"] is True
+    assert "simulated/unverified" in data["ocr_disclaimer"]
+
+    # 2. Rejection of unsupported extension
+    bad_res = client.post(
+        "/api/documents/ocr-preview",
+        headers=headers,
+        data={"file": (io.BytesIO(b"bad"), "payload.sh")},
+        content_type="multipart/form-data"
+    )
+    assert bad_res.status_code == 400

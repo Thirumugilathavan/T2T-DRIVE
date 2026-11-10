@@ -20,12 +20,19 @@ class Config:
     PORT = int(os.getenv("PORT", "5000"))
     HOST = os.getenv("HOST", "0.0.0.0")
 
+    # Frontend Delivery & Base URL Configuration (Phase 6 / Render Deployment)
+    FRONTEND_DIR = os.getenv("FRONTEND_DIR", str((BASE_DIR.parent / "frontend").resolve()))
+    BASE_URL = os.getenv("BASE_URL", os.getenv("RENDER_EXTERNAL_URL", "http://localhost:5000")).rstrip("/")
+
     # Allowed CORS Origins
     _origins = os.getenv(
         "ALLOWED_ORIGINS",
         "http://localhost:3000,http://127.0.0.1:5500,http://localhost:5000"
     )
     ALLOWED_ORIGINS = [origin.strip() for origin in _origins.split(",") if origin.strip()]
+    _render_url = os.getenv("RENDER_EXTERNAL_URL")
+    if _render_url and _render_url.strip() not in ALLOWED_ORIGINS:
+        ALLOWED_ORIGINS.append(_render_url.strip())
 
     # MongoDB Atlas
     MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017/t2t_drive")
@@ -58,8 +65,8 @@ class Config:
 
     # Voice Pipeline Configuration (Phase 4)
     VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "mock").lower()
-    GNANI_PRISMA_ENABLED = os.getenv("GNANI_PRISMA_ENABLED", "0") == "1"
-    GNANI_TIMBRE_ENABLED = os.getenv("GNANI_TIMBRE_ENABLED", "0") == "1"
+    GNANI_PRISMA_ENABLED = os.getenv("GNANI_PRISMA_ENABLED", "1") == "1"
+    GNANI_TIMBRE_ENABLED = os.getenv("GNANI_TIMBRE_ENABLED", "1") == "1"
     VOICE_MAX_UPLOAD_MB = int(os.getenv("VOICE_MAX_UPLOAD_MB", "10"))
     VOICE_MAX_DURATION_SECONDS = int(os.getenv("VOICE_MAX_DURATION_SECONDS", "60"))
     VOICE_TEMP_DIRECTORY = os.getenv("VOICE_TEMP_DIRECTORY", "")
@@ -93,6 +100,10 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     TESTING = True
     DEBUG = True
+    VOICE_PROVIDER_MODE = "mock"
+    GNANI_PRISMA_ENABLED = False
+    GNANI_TIMBRE_ENABLED = False
+    GNANI_API_KEY = ""
     MONGODB_URI = "mongomock://localhost/t2t_drive_test"
     DB_NAME = "t2t_drive_test"
     SMS_PROVIDER_MODE = "mock"
@@ -103,6 +114,9 @@ class TestingConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
+    VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "live").lower()
+    GNANI_PRISMA_ENABLED = os.getenv("GNANI_PRISMA_ENABLED", "1") == "1"
+    GNANI_TIMBRE_ENABLED = os.getenv("GNANI_TIMBRE_ENABLED", "1") == "1"
 
     @classmethod
     def validate(cls):
@@ -128,6 +142,16 @@ class ProductionConfig(Config):
             raise ValueError(
                 "CRITICAL: Production OTP_HASH_SECRET must be explicitly set and at least 32 characters long."
             )
+
+        # Enforce Real Gnani AI Voice Configuration in Live Production Mode
+        voice_mode = os.getenv("VOICE_PROVIDER_MODE", "live").lower()
+        if voice_mode == "live":
+            gnani_key = os.getenv("GNANI_API_KEY", "").strip()
+            if not gnani_key or gnani_key.startswith("dev-") or gnani_key.startswith("mock-") or len(gnani_key) < 8:
+                raise ValueError(
+                    "CRITICAL: Production GNANI_API_KEY must be set to a valid provider key when VOICE_PROVIDER_MODE='live'. "
+                    "Silent fallback to mock responses is strictly forbidden in production."
+                )
 
 
 config_by_name = {

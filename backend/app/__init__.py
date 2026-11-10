@@ -40,15 +40,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def create_app(config_name=None):
+def create_app(config_name=None, db=None):
     """
     Application Factory Pattern.
     Instantiates Flask, sets up CORS, database connections, blueprints, and error handlers.
+    Supports optional existing `db` parameter to simulate application restarts against
+    an already-populated database.
     """
     app = Flask(__name__)
 
     # 1. Load Configuration
-    config_class = config_by_name.get(config_name) if config_name else get_config()
+    if isinstance(config_name, type) or hasattr(config_name, "__dict__"):
+        config_class = config_name
+    elif config_name and config_name in config_by_name:
+        config_class = config_by_name[config_name]
+    else:
+        config_class = get_config()
     app.config.from_object(config_class)
     if hasattr(config_class, "validate"):
         config_class.validate()
@@ -63,10 +70,11 @@ def create_app(config_name=None):
     logger.info("Configured CORS for origins: %s", allowed_origins)
 
     # 3. Initialize Database Manager & Ensure Indexes
-    db_manager.init_app(app)
-    db = db_manager.get_db()
-    if db is not None:
-        ensure_indexes(db)
+    if db is None:
+        db_manager.init_app(app)
+        db = db_manager.get_db()
+        if db is not None:
+            ensure_indexes(db)
 
     # 4. Initialize Core Foundation & Financial Services
     auth_service = AuthService(db=db, config=app.config)
@@ -147,7 +155,7 @@ def create_app(config_name=None):
     trip_repository = TripRepository(db=db)
     passenger_access_service = PassengerAccessService(
         repository=trip_repository,
-        secret_key=app.config.get("JWT_SECRET_KEY", "default-dev-secret-t2t-drive"),
+        secret_key=app.config.get("JWT_SECRET") or app.config.get("JWT_SECRET_KEY", "default-dev-secret-t2t-drive"),
         base_url=app.config.get("BASE_URL", "http://localhost:5000")
     )
     trip_service = TripService(
@@ -193,22 +201,48 @@ def create_app(config_name=None):
     )
 
     voice_mode = app.config.get("VOICE_PROVIDER_MODE", "mock").lower()
-    gnani_key = app.config.get("GNANI_API_KEY", "")
+    gnani_key = app.config.get("GNANI_API_KEY", "").strip()
+    prisma_enabled = bool(app.config.get("GNANI_PRISMA_ENABLED", False))
+    timbre_enabled = bool(app.config.get("GNANI_TIMBRE_ENABLED", False))
 
-    if voice_mode == "live" and gnani_key:
-        logger.info("[LIVE] Initializing live Gnani Prisma STT and Timbre TTS adapters.")
-        prisma_adapter = PrismaAdapter(
-            api_key=gnani_key,
-            endpoint_url=app.config.get("GNANI_PRISMA_ENDPOINT")
-        )
-        timbre_adapter = TimbreAdapter(
-            api_key=gnani_key,
-            endpoint_url=app.config.get("GNANI_TIMBRE_ENDPOINT")
-        )
-    else:
+    if voice_mode == "live":
+        # Strict validation: Live mode requires GNANI_API_KEY; no silent fallback to mock is permitted
+        if not gnani_key:
+            raise ValueError(
+                "CRITICAL: Live voice mode requested (VOICE_PROVIDER_MODE='live') but GNANI_API_KEY is not configured. "
+                "Silent fallback to mock is strictly forbidden in live mode."
+            )
+
+        if prisma_enabled:
+            logger.info("[LIVE] Initializing live Gnani Prisma STT adapter.")
+            prisma_adapter = PrismaAdapter(
+                api_key=gnani_key,
+                endpoint_url=app.config.get("GNANI_PRISMA_ENDPOINT")
+            )
+        else:
+            logger.warning("[LIVE] GNANI_PRISMA_ENABLED is False; live STT is disabled.")
+            from app.voice.prisma_adapter import DisabledPrismaAdapter
+            prisma_adapter = DisabledPrismaAdapter(reason="Gnani Prisma STT disabled via GNANI_PRISMA_ENABLED=0.")
+
+        if timbre_enabled:
+            logger.info("[LIVE] Initializing live Gnani Timbre TTS adapter.")
+            timbre_adapter = TimbreAdapter(
+                api_key=gnani_key,
+                endpoint_url=app.config.get("GNANI_TIMBRE_ENDPOINT")
+            )
+        else:
+            logger.warning("[LIVE] GNANI_TIMBRE_ENABLED is False; live TTS is disabled.")
+            from app.voice.timbre_adapter import DisabledTimbreAdapter
+            timbre_adapter = DisabledTimbreAdapter(reason="Gnani Timbre TTS disabled via GNANI_TIMBRE_ENABLED=0.")
+
+    elif voice_mode == "mock":
         logger.info("[MOCK] Initializing mock Gnani Prisma STT and Timbre TTS adapters.")
         prisma_adapter = MockPrismaAdapter()
         timbre_adapter = MockTimbreAdapter()
+    else:
+        raise ValueError(
+            f"Invalid VOICE_PROVIDER_MODE: '{voice_mode}'. Allowed values are 'live' or 'mock'."
+        )
 
     audio_validator = AudioValidator(
         max_upload_mb=app.config.get("VOICE_MAX_UPLOAD_MB", 10),
@@ -291,6 +325,9 @@ def create_app(config_name=None):
     from app.routes.trip_routes import trip_bp
     from app.routes.passenger_routes import passenger_bp
 
+    # Frontend Delivery Blueprint (Phase 6 / Render Deployment)
+    from app.routes.frontend_routes import frontend_bp
+
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(transaction_bp)
@@ -306,6 +343,7 @@ def create_app(config_name=None):
     app.register_blueprint(reminder_bp)
     app.register_blueprint(trip_bp)
     app.register_blueprint(passenger_bp)
+    app.register_blueprint(frontend_bp)
 
     # 6. Centralized Error Handlers
     register_error_handlers(app)

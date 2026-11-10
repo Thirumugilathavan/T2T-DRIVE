@@ -277,14 +277,173 @@
   }
 
   /**
+   * Generates a valid minimal 16-bit PCM Mono 8kHz WAV base64 string for offline audio playback.
+   */
+  function generateMockWavBase64() {
+    const sampleRate = 8000;
+    const duration = 0.35;
+    const numSamples = Math.floor(sampleRate * duration);
+    const buffer = new ArrayBuffer(44 + numSamples * 2);
+    const view = new DataView(buffer);
+
+    function writeString(v, offset, string) {
+      for (let i = 0; i < string.length; i++) {
+        v.setUint8(offset + i, string.charCodeAt(i));
+      }
+    }
+
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + numSamples * 2, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 1, true); // Mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, numSamples * 2, true);
+
+    for (let i = 0; i < numSamples; i++) {
+      const tone1 = Math.sin((2 * Math.PI * 523.25 * i) / sampleRate);
+      const tone2 = Math.sin((2 * Math.PI * 659.25 * i) / sampleRate);
+      const envelope = Math.max(0, 1 - (i / numSamples));
+      const sample = (tone1 + tone2) * 0.25 * envelope * 32767;
+      view.setInt16(44 + i * 2, sample, true);
+    }
+
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  /**
    * Mock Speak (TTS)
    */
   async function speak(text, lang = "ta") {
-    await delay(300);
+    await delay(200);
     return {
-      available: false,
+      audio_base64: generateMockWavBase64(),
+      content_type: "audio/wav",
+      provider: "mock_timbre",
+      status: "SUCCESS",
       text_rendered: text,
-      message: "MOCK: Gnani Timbre TTS voice synthesis simulated. Web Speech API fallback available.",
+      message: "MOCK: Gnani Timbre TTS voice synthesis simulated.",
+      _mock: true
+    };
+  }
+
+  /**
+   * Mock Voice Chat (Unified End-to-End Workflow)
+   */
+  async function voiceChat(audioBlobOrFile, lang = "tanglish", sessionId = null, generateTts = true) {
+    await delay(450);
+
+    let chosenTranscript = "Inniku collection 1500, petrol 300, owner-ku 200 kuduthen.";
+    if (lang === "ta" || lang === "ta-IN") {
+      chosenTranscript = "இன்னைக்கு நான் ஐநூறு ரூபாய் சம்பாதிச்சேன்";
+    } else if (lang === "en" || lang === "en-IN") {
+      chosenTranscript = "Today income is 800 rupees and diesel expense is 250";
+    } else if (lang === "codemix") {
+      chosenTranscript = "Tea and tiffin 60 rupees aachu";
+    }
+
+    if (audioBlobOrFile && audioBlobOrFile.name) {
+      const fn = audioBlobOrFile.name.toLowerCase();
+      if (fn.includes("tamil")) chosenTranscript = "இன்னைக்கு நான் ஐநூறு ரூபாய் சம்பாதிச்சேன்";
+      else if (fn.includes("english")) chosenTranscript = "Today income is 800 rupees and diesel expense is 250";
+      else if (fn.includes("codmix") || fn.includes("codemix")) chosenTranscript = "Tea and tiffin 60 rupees aachu";
+      else if (fn.includes("tanglish")) chosenTranscript = "Inniku collection 1500, petrol 300, owner-ku 200 kuduthen.";
+    }
+
+    const numbers = (chosenTranscript.match(/\d+/g) || []).map(Number);
+    let income = 0;
+    let expense = 0;
+    let owner = 0;
+    let category = "petrol";
+
+    if (numbers.length >= 3) {
+      income = numbers[0];
+      expense = numbers[1];
+      owner = numbers[2];
+    } else if (numbers.length === 2) {
+      income = numbers[0];
+      expense = numbers[1];
+    } else if (numbers.length === 1) {
+      if (/collection|earning|income|சம்பாதி/i.test(chosenTranscript)) {
+        income = numbers[0];
+      } else {
+        expense = numbers[0];
+      }
+    } else {
+      income = 500;
+    }
+
+    if (/diesel|டீசல்/i.test(chosenTranscript)) category = "diesel";
+    else if (/tea|food|சாப்பாடு|டிபன்|tiffin/i.test(chosenTranscript)) category = "food";
+
+    const net = income - expense - owner;
+    const pendingId = "PEND_MOCK_" + Date.now();
+    const replyText = income > 0 && expense > 0
+      ? `Vanakkam! Understood: Collection ₹${income}, ${category} ₹${expense}, Owner payout ₹${owner}. Net take-home ₹${net}. Shall I save this?`
+      : expense > 0
+      ? `Vandi TN-01-AB-1234-kku ₹${expense}.00 ${category} செலவு பதிவு செய்யவா?`
+      : `Vandi TN-01-AB-1234-kku ₹${income}.00 வரவு பதிவு செய்யவா?`;
+
+    const sid = sessionId || "SESS_MOCK_" + Date.now();
+    const mockAudioBase64 = generateTts ? generateMockWavBase64() : null;
+
+    return {
+      session_id: sid,
+      transcript: chosenTranscript,
+      detected_language: lang,
+      confidence: 0.96,
+      stt_provider: "mock_prisma",
+      agent_message: replyText,
+      reply_text: replyText,
+      agent_voice_text: replyText,
+      intent: expense > 0 ? "RECORD_EXPENSE" : "RECORD_INCOME",
+      slots: { amount: expense || income, category: category, vehicle_id: "TN-01-AB-1234" },
+      entities: {
+        income: income,
+        expense: expense,
+        category: category,
+        owner_payment: owner,
+        net_balance: net,
+        amount: expense || income
+      },
+      pending_id: pendingId,
+      active_pending_action: {
+        pending_action_id: pendingId,
+        status: "PENDING",
+        action_type: expense > 0 ? "ADD_EXPENSE" : "ADD_INCOME",
+        proposed_data: {
+          amount: expense || income,
+          category: category,
+          vehicle_id: "TN-01-AB-1234",
+          description: chosenTranscript
+        }
+      },
+      next_step: "AWAITING_CONFIRMATION",
+      tts_audio_base64: mockAudioBase64,
+      tts_provider: "mock_timbre",
+      tts_status: generateTts ? "SUCCESS" : "SKIPPED",
+      audio_quality: "GOOD",
+      noise_classification: { primary_category: "CABIN_HUM", confidence: 0.94 },
+      snr_estimate: { snr_db: 24.5, quality: "GOOD" },
+      trace_steps: [
+        { step: 1, title: "Acoustic Noise Gate", detail: "Filtered 120Hz-400Hz engine hum. SNR 24.5 dB.", status: "complete" },
+        { step: 2, title: "Speech Recognition", detail: `Transcribed: "${chosenTranscript}"`, status: "complete" },
+        { step: 3, title: "Language Classification", detail: `Detected: ${lang} (Indic-ASR)`, status: "complete" },
+        { step: 4, title: "NLU Intent Parsing", detail: `Classified Intent: ${expense > 0 ? 'RECORD_EXPENSE' : 'RECORD_INCOME'} (Score: 0.96)`, status: "complete" },
+        { step: 5, title: "Slot Filling & Entity Extraction", detail: `income=₹${income}, expense=₹${expense} (${category}), owner=₹${owner}`, status: "complete" },
+        { step: 6, title: "Driver Confirmation Gate", detail: "Awaiting driver confirmation.", status: "waiting" }
+      ],
       _mock: true
     };
   }
@@ -292,6 +451,7 @@
   // Export to global namespace
   window.MockAPI = {
     transcribe,
+    voiceChat,
     agentHandle,
     confirm,
     getSummary,

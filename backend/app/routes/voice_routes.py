@@ -229,6 +229,13 @@ def speech_transcribe_alias():
     return _handle_transcribe_request()
 
 
+@speech_bp.route("/chat", methods=["POST"])
+@require_auth
+def speech_chat_alias():
+    """Alias for /api/speech/chat."""
+    return voice_chat()
+
+
 @speech_bp.route("/speak", methods=["POST"])
 @require_auth
 def speech_speak_alias():

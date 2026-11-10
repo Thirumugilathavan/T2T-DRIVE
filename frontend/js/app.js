@@ -50,6 +50,9 @@
   function toggleSystemMode() {
     const isMock = window.T2T_CONFIG.MODE === "mock";
     window.T2T_CONFIG.MODE = isMock ? "live" : "mock";
+    try {
+      localStorage.setItem("t2t_mode", window.T2T_CONFIG.MODE);
+    } catch (e) {}
 
     updateModeUI();
 

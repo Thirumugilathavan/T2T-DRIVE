@@ -45,23 +45,36 @@ class TransactionRepository:
     def __init__(self, db):
         self.db = db
 
-    def insert_transaction(self, txn_doc: Dict[str, Any]) -> str:
+    def insert_transaction(self, txn_doc: Dict[str, Any], session=None) -> str:
         """
         Appends a new financial transaction to the ledger.
         There is NO update_transaction or delete_transaction method.
+        Supports optional client session for multi-document ACID transactions.
         """
         mongo_doc = to_mongo_doc(txn_doc)
-        self.db.transactions.insert_one(mongo_doc)
+        if session is not None:
+            self.db.transactions.insert_one(mongo_doc, session=session)
+        else:
+            self.db.transactions.insert_one(mongo_doc)
         return txn_doc["transaction_id"]
 
-    def get_by_id(self, transaction_id: str, driver_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_by_id(self, transaction_id: str, driver_id: Optional[str] = None, session=None) -> Optional[Dict[str, Any]]:
         """
         Retrieves a single transaction by ID, optionally scoped to driver for isolation.
         """
         query: Dict[str, Any] = {"transaction_id": transaction_id}
         if driver_id:
             query["driver_id"] = driver_id
-        doc = self.db.transactions.find_one(query)
+        doc = self.db.transactions.find_one(query, session=session) if session is not None else self.db.transactions.find_one(query)
+        return from_mongo_doc(doc)
+
+    def get_by_idempotency_key(self, driver_id: str, idempotency_key: str, session=None) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves a transaction by driver ID and idempotency key.
+        Used for atomic idempotency checks before writing.
+        """
+        query = {"driver_id": driver_id, "idempotency_key": idempotency_key}
+        doc = self.db.transactions.find_one(query, session=session) if session is not None else self.db.transactions.find_one(query)
         return from_mongo_doc(doc)
 
     def find_transactions(

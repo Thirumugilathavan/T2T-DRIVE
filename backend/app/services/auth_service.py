@@ -231,6 +231,9 @@ class AuthService:
         stored_hash = driver.get("pin_hash")
         # In development demo, if no pin_hash set, allow '1234'
         if not stored_hash:
+            env = self.config.get("ENV", "development").lower()
+            if env == "production":
+                return {"success": False, "error": "PIN_NOT_SET", "message": "PIN authentication is not configured for this account. Please log in via OTP."}
             if pin.strip() == "1234":
                 token = self.generate_jwt_token(driver["driver_id"])
                 return {"success": True, "token": token, "driver": driver}

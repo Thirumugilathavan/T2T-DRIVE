@@ -76,6 +76,36 @@ def create_document():
         return error_response(code="INTERNAL_ERROR", message=str(e), status_code=500)
 
 
+@document_bp.route("/ocr-preview", methods=["POST"])
+@token_required
+def ocr_preview():
+    """
+    Accepts an uploaded vehicle/driver document image or PDF and returns candidate extracted fields.
+    Note: Output is UNVERIFIED simulated OCR and requires explicit driver confirmation before saving.
+    """
+    doc_svc = _get_document_service()
+
+    if "file" not in request.files:
+        return error_response(code="BAD_REQUEST", message="No file uploaded.", status_code=400)
+
+    uploaded = request.files["file"]
+    if not uploaded or not uploaded.filename:
+        return error_response(code="BAD_REQUEST", message="Empty filename.", status_code=400)
+
+    try:
+        file_bytes = uploaded.read()
+        extracted = doc_svc.extract_from_upload(file_bytes=file_bytes, filename=uploaded.filename)
+        return success_response(
+            data=extracted,
+            message="Document fields previewed via OCR. Please verify details before saving."
+        )
+    except ValueError as ve:
+        return error_response(code="INVALID_DOCUMENT_FILE", message=str(ve), status_code=400)
+    except Exception as e:
+        logger.error("Document OCR preview failed: %s", e)
+        return error_response(code="OCR_ERROR", message=str(e), status_code=400)
+
+
 @document_bp.route("", methods=["GET"])
 @token_required
 def list_documents():

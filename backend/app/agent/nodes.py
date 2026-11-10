@@ -28,7 +28,11 @@ from app.agent.prompts import (
     prompt_trip_destination_proposal,
     prompt_trip_stop_proposal,
     prompt_trip_fare_proposal,
-    prompt_trip_payment_confirmed
+    prompt_trip_payment_confirmed,
+    prompt_batch_proposal_confirmation,
+    prompt_batch_execution_success,
+    prompt_partial_execution_success,
+    prompt_clarify_confirmation
 )
 from app.models.financial import PendingActionType
 from app.models.trip import ProposalType
@@ -148,6 +152,7 @@ class AgentNodes:
             AgentIntent.RECORD_INCOME: PendingActionType.ADD_INCOME,
             AgentIntent.RECORD_OWNER_PAYMENT: PendingActionType.ADD_OWNER_PAYMENT,
             AgentIntent.ADD_MAINTENANCE: PendingActionType.ADD_EXPENSE,
+            AgentIntent.RECORD_BATCH_TRANSACTIONS: PendingActionType.ADD_BATCH_TRANSACTIONS,
         }
         action_type = action_type_map.get(intent)
         if not action_type:
@@ -162,14 +167,24 @@ class AgentNodes:
         category = slots.get("category", "OTHER_EXPENSE")
         vehicle_id = slots.get("vehicle_id", "DEFAULT_VEHICLE")
 
-        proposed_data = {
-            "vehicle_id": vehicle_id,
-            "amount": str(amount),
-            "category": category,
-            "description": slots.get("notes", state.get("user_message", "")),
-            "transaction_date": today_ist(),
-            "source": "VOICE_AGENT"
-        }
+        if action_type == PendingActionType.ADD_BATCH_TRANSACTIONS:
+            txns = slots.get("transactions", [])
+            proposed_data = {
+                "vehicle_id": vehicle_id,
+                "transactions": txns,
+                "description": slots.get("notes", state.get("user_message", "")),
+                "transaction_date": today_ist(),
+                "source": "VOICE_AGENT"
+            }
+        else:
+            proposed_data = {
+                "vehicle_id": vehicle_id,
+                "amount": str(amount),
+                "category": category,
+                "description": slots.get("notes", state.get("user_message", "")),
+                "transaction_date": today_ist(),
+                "source": "VOICE_AGENT"
+            }
 
         # If maintenance expense, attach metadata for ledger linkage
         if category == "MAINTENANCE":
@@ -213,13 +228,20 @@ class AgentNodes:
         if "status" in serializable_pending and hasattr(serializable_pending["status"], "value"):
             serializable_pending["status"] = serializable_pending["status"].value
 
-        prompt_data = prompt_proposal_confirmation(
-            action_type=action_type.value,
-            amount=amount,
-            category=category,
-            vehicle_id=vehicle_id,
-            language=language
-        )
+        if action_type == PendingActionType.ADD_BATCH_TRANSACTIONS:
+            prompt_data = prompt_batch_proposal_confirmation(
+                transactions=slots.get("transactions", []),
+                vehicle_id=vehicle_id,
+                language=language
+            )
+        else:
+            prompt_data = prompt_proposal_confirmation(
+                action_type=action_type.value,
+                amount=amount,
+                category=category,
+                vehicle_id=vehicle_id,
+                language=language
+            )
 
         return {
             "active_pending_action": serializable_pending,
@@ -247,14 +269,19 @@ class AgentNodes:
 
         exec_key = f"AGENT_EXEC_{pending_id}"
         execution_result = None
+        filter_cat = state.get("slots", {}).get("filter_category")
+
+        confirm_kwargs = {
+            "pending_action_id": pending_id,
+            "driver_id": driver_id,
+            "idempotency_key": exec_key
+        }
+        if filter_cat:
+            confirm_kwargs["filter_category"] = filter_cat
 
         if self.pending_svc:
             try:
-                result = self.pending_svc.confirm_action(
-                    pending_action_id=pending_id,
-                    driver_id=driver_id,
-                    idempotency_key=exec_key
-                )
+                result = self.pending_svc.confirm_action(**confirm_kwargs)
                 execution_result = result
             except Exception as e:
                 logger.error("Failed to execute pending action %s: %s", pending_id, e)
@@ -268,13 +295,30 @@ class AgentNodes:
             execution_result = {"status": "CONFIRMED", "pending_action_id": pending_id}
 
         proposed = active_action.get("proposed_data", {})
-        prompt_data = prompt_execution_success(
-            action_type=active_action.get("action_type", "ADD_EXPENSE"),
-            amount=proposed.get("amount", "0"),
-            category=proposed.get("category", "EXPENSE"),
-            vehicle_id=proposed.get("vehicle_id", "DEFAULT_VEHICLE"),
-            language=language
-        )
+        action_type = active_action.get("action_type")
+        if action_type in (PendingActionType.ADD_BATCH_TRANSACTIONS.value, "ADD_BATCH_TRANSACTIONS"):
+            if execution_result and execution_result.get("is_partial"):
+                executed_items = execution_result.get("transactions", [])
+                p_item = executed_items[0] if executed_items else {}
+                prompt_data = prompt_partial_execution_success(
+                    category=p_item.get("category", filter_cat or "Item"),
+                    amount=p_item.get("amount", "0"),
+                    language=language
+                )
+            else:
+                prompt_data = prompt_batch_execution_success(
+                    transactions=proposed.get("transactions", []),
+                    vehicle_id=proposed.get("vehicle_id", "DEFAULT_VEHICLE"),
+                    language=language
+                )
+        else:
+            prompt_data = prompt_execution_success(
+                action_type=action_type or "ADD_EXPENSE",
+                amount=proposed.get("amount", "0"),
+                category=proposed.get("category", "EXPENSE"),
+                vehicle_id=proposed.get("vehicle_id", "DEFAULT_VEHICLE"),
+                language=language
+            )
 
         return {
             "active_pending_action": None,
@@ -282,6 +326,19 @@ class AgentNodes:
             "response_message": prompt_data["text"],
             "response_voice_text": prompt_data["voice"],
             "next_step": "COMPLETED"
+        }
+
+    def clarify_confirmation_node(self, state: AgentState) -> Dict[str, Any]:
+        """
+        Prompts driver for clarification when an ambiguous response is received
+        while awaiting confirmation of a pending financial action.
+        """
+        language = state.get("language", "tanglish")
+        prompt_data = prompt_clarify_confirmation(language=language)
+        return {
+            "response_message": prompt_data["text"],
+            "response_voice_text": prompt_data["voice"],
+            "next_step": "AWAITING_CONFIRMATION"
         }
 
     def action_cancellation_node(self, state: AgentState) -> Dict[str, Any]:

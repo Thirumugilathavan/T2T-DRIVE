@@ -363,9 +363,16 @@ class TripService:
             if proposal.proposal_type == ProposalType.DESTINATION_CHANGE:
                 new_dest = proposal.proposed_value.get("destination_location", trip.destination_location)
             elif proposal.proposal_type == ProposalType.ADD_STOP:
-                added_stop = proposal.proposed_value.get("stop")
+                added_stop = (
+                    proposal.proposed_value.get("stop")
+                    or proposal.proposed_value.get("stop_name")
+                    or proposal.proposed_value.get("additional_stop")
+                )
                 if added_stop and added_stop not in new_stops:
                     new_stops.append(added_stop)
+                fare_adj = proposal.proposed_value.get("fare_adjustment") or proposal.proposed_value.get("additional_fare")
+                if fare_adj:
+                    new_fare = quantize_money(new_fare + Decimal(str(fare_adj)))
             elif proposal.proposal_type == ProposalType.FARE_CHANGE:
                 raw_new_fare = proposal.proposed_value.get("agreed_fare")
                 if raw_new_fare:

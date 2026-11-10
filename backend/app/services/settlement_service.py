@@ -76,6 +76,212 @@ class SettlementService:
         self.db.vehicles.insert_one(to_mongo_doc(doc))
         return doc
 
+    def register_or_update_vehicle(
+        self,
+        vehicle_id: str,
+        owner_id: str,
+        vehicle_type: str = "AUTO_RICKSHAW",
+        registration_number: Optional[str] = None,
+        rent_type: str = "FIXED_RENT",
+        rent_amount: Decimal = Decimal("350.00"),
+        rent_frequency: RentFrequency = RentFrequency.DAILY,
+        assigned_driver_ids: Optional[List[str]] = None,
+        actor_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Registers or updates vehicle rental configuration and driver assignment.
+        Enforces owner authorization when modifying existing vehicles.
+        """
+        reg_num = (registration_number or vehicle_id).strip().upper()
+        v_id = vehicle_id.strip()
+        assigned = list(assigned_driver_ids or [])
+        freq = rent_frequency if isinstance(rent_frequency, RentFrequency) else RentFrequency(rent_frequency)
+        amount = quantize_money(rent_amount)
+
+        existing = self.db.vehicles.find_one({"vehicle_id": v_id})
+        if existing:
+            curr_owner = existing.get("owner_id")
+            if actor_id and curr_owner and curr_owner != actor_id:
+                curr_assigned = existing.get("assigned_driver_ids", [])
+                if actor_id not in curr_assigned:
+                    raise PermissionError(f"User '{actor_id}' is not authorized to update vehicle '{v_id}'.")
+
+            update_fields: Dict[str, Any] = {
+                "rent_amount": amount,
+                "rent_frequency": freq.value if hasattr(freq, "value") else freq,
+                "rent_type": rent_type,
+                "vehicle_type": vehicle_type,
+                "registration_number": reg_num,
+                "updated_at": now_utc()
+            }
+            if owner_id:
+                update_fields["owner_id"] = owner_id
+            if assigned:
+                merged_drivers = list(set(existing.get("assigned_driver_ids", []) + assigned))
+                update_fields["assigned_driver_ids"] = merged_drivers
+
+            self.db.vehicles.update_one({"_id": existing["_id"]}, {"$set": to_mongo_doc(update_fields)})
+            updated = self.db.vehicles.find_one({"vehicle_id": v_id})
+            return self._format_vehicle(from_mongo_doc(updated))
+
+        new_veh = Vehicle(
+            vehicle_id=v_id,
+            owner_id=owner_id,
+            vehicle_type=vehicle_type,
+            registration_number=reg_num,
+            rent_type=rent_type,
+            rent_amount=amount,
+            rent_frequency=freq,
+            assigned_driver_ids=assigned,
+            active_status="ACTIVE",
+            created_at=now_utc()
+        )
+        doc = new_veh.model_dump()
+        self.db.vehicles.insert_one(to_mongo_doc(doc))
+        return self._format_vehicle(doc)
+
+    def assign_driver_to_vehicle(
+        self,
+        vehicle_id: str,
+        driver_id: str,
+        owner_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Assigns or links a driver to an existing vehicle.
+        Validates owner identity if owner_id is specified.
+        """
+        v_id = vehicle_id.strip()
+        d_id = driver_id.strip()
+        veh = self.db.vehicles.find_one({"vehicle_id": v_id})
+        if not veh:
+            raise ValueError(f"Vehicle '{v_id}' not found.")
+
+        if owner_id and veh.get("owner_id") != owner_id:
+            raise PermissionError(f"Owner '{owner_id}' is not authorized to assign drivers to vehicle '{v_id}'.")
+
+        self.db.vehicles.update_one(
+            {"_id": veh["_id"]},
+            {"$addToSet": {"assigned_driver_ids": d_id}}
+        )
+        updated = self.db.vehicles.find_one({"vehicle_id": v_id})
+        return self._format_vehicle(from_mongo_doc(updated))
+
+    def reassign_vehicle_drivers(
+        self,
+        vehicle_id: str,
+        new_driver_ids: List[str],
+        owner_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Reassigns driver fleet for a vehicle, replacing existing assignments.
+        """
+        v_id = vehicle_id.strip()
+        veh = self.db.vehicles.find_one({"vehicle_id": v_id})
+        if not veh:
+            raise ValueError(f"Vehicle '{v_id}' not found.")
+
+        if owner_id and veh.get("owner_id") != owner_id:
+            raise PermissionError(f"Owner '{owner_id}' is not authorized to reassign vehicle '{v_id}'.")
+
+        self.db.vehicles.update_one(
+            {"_id": veh["_id"]},
+            {"$set": {"assigned_driver_ids": list(new_driver_ids)}}
+        )
+        updated = self.db.vehicles.find_one({"vehicle_id": v_id})
+        return self._format_vehicle(from_mongo_doc(updated))
+
+    def get_vehicle(self, vehicle_id: str, actor_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves a vehicle with authorization validation.
+        """
+        v_id = vehicle_id.strip()
+        veh = self.db.vehicles.find_one({"vehicle_id": v_id})
+        if not veh:
+            return None
+        doc = from_mongo_doc(veh)
+        if actor_id:
+            owner = doc.get("owner_id")
+            assigned = doc.get("assigned_driver_ids", [])
+            if actor_id != owner and actor_id not in assigned:
+                return None
+        return self._format_vehicle(doc)
+
+    def list_vehicles(
+        self,
+        owner_id: Optional[str] = None,
+        driver_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Lists vehicles scoped to owner_id or driver_id.
+        """
+        query: Dict[str, Any] = {}
+        if owner_id and driver_id:
+            query["$or"] = [
+                {"owner_id": owner_id},
+                {"assigned_driver_ids": driver_id}
+            ]
+        elif owner_id:
+            query["owner_id"] = owner_id
+        elif driver_id:
+            query["assigned_driver_ids"] = driver_id
+
+        cursor = self.db.vehicles.find(query)
+        return [self._format_vehicle(from_mongo_doc(d)) for d in cursor if d]
+
+    def get_outstanding_rent(
+        self,
+        driver_id: str,
+        vehicle_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Calculates driver's latest outstanding rent and settlement status.
+        """
+        query: Dict[str, Any] = {"driver_id": driver_id}
+        if vehicle_id:
+            query["vehicle_id"] = vehicle_id
+
+        latest = self.db.settlements.find_one(
+            query,
+            sort=[("settlement_date", DESCENDING), ("version", DESCENDING)]
+        )
+        if latest:
+            doc = from_mongo_doc(latest)
+            rem_bal = quantize_money(doc.get("remaining_balance", Decimal("0.00")))
+            status = doc.get("settlement_status")
+            status_val = status.value if hasattr(status, "value") else str(status)
+            return {
+                "driver_id": driver_id,
+                "vehicle_id": doc.get("vehicle_id"),
+                "outstanding_balance": format_money(rem_bal),
+                "settlement_status": status_val,
+                "latest_settlement_id": doc.get("settlement_id"),
+                "settlement_date": doc.get("settlement_date")
+            }
+
+        return {
+            "driver_id": driver_id,
+            "vehicle_id": vehicle_id,
+            "outstanding_balance": "0.00",
+            "settlement_status": "NONE",
+            "latest_settlement_id": None,
+            "settlement_date": None
+        }
+
+    @staticmethod
+    def _format_vehicle(doc: Dict[str, Any]) -> Dict[str, Any]:
+        """Formats vehicle dictionary for API responses."""
+        res = dict(doc)
+        if "rent_amount" in res:
+            res["rent_amount"] = format_money(res["rent_amount"])
+        if "rent_frequency" in res and hasattr(res["rent_frequency"], "value"):
+            res["rent_frequency"] = res["rent_frequency"].value
+        if "created_at" in res and hasattr(res["created_at"], "isoformat"):
+            res["created_at"] = res["created_at"].isoformat()
+        if "updated_at" in res and hasattr(res["updated_at"], "isoformat"):
+            res["updated_at"] = res["updated_at"].isoformat()
+        res.pop("_id", None)
+        return res
+
     def create_settlement(
         self,
         driver_id: str,

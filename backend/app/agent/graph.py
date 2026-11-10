@@ -21,11 +21,13 @@ def route_after_nlu(state: AgentState) -> str:
     intent = state.get("intent", AgentIntent.UNKNOWN)
     missing = state.get("missing_slots", [])
 
-    # 1. Active pending action confirmation or cancellation has top priority
+    # 1. Active pending action confirmation, cancellation, or clarification
     if has_pending and intent == AgentIntent.CONFIRM_ACTION:
         return "execute_action"
     if has_pending and intent == AgentIntent.CANCEL_ACTION:
         return "cancel_action"
+    if has_pending and intent == AgentIntent.CLARIFY_CONFIRMATION:
+        return "clarify_confirmation"
 
     # 2. If missing required slots (e.g. amount was not provided for an expense)
     if missing:
@@ -36,7 +38,8 @@ def route_after_nlu(state: AgentState) -> str:
         AgentIntent.RECORD_EXPENSE,
         AgentIntent.RECORD_INCOME,
         AgentIntent.RECORD_OWNER_PAYMENT,
-        AgentIntent.ADD_MAINTENANCE
+        AgentIntent.ADD_MAINTENANCE,
+        AgentIntent.RECORD_BATCH_TRANSACTIONS
     ):
         return "propose_action"
 
@@ -105,6 +108,7 @@ def build_agent_graph(nodes: AgentNodes, checkpointer=None):
     workflow.add_node("trip_payment", nodes.trip_payment_node)
     workflow.add_node("help", nodes.help_node)
     workflow.add_node("fallback", nodes.fallback_node)
+    workflow.add_node("clarify_confirmation", nodes.clarify_confirmation_node)
 
     # Entry edge
     workflow.add_edge(START, "nlu")
@@ -116,6 +120,7 @@ def build_agent_graph(nodes: AgentNodes, checkpointer=None):
         {
             "execute_action": "execute_action",
             "cancel_action": "cancel_action",
+            "clarify_confirmation": "clarify_confirmation",
             "slot_filling": "slot_filling",
             "propose_action": "propose_action",
             "query_summary": "query_summary",
@@ -139,6 +144,7 @@ def build_agent_graph(nodes: AgentNodes, checkpointer=None):
     workflow.add_edge("propose_action", END)
     workflow.add_edge("execute_action", END)
     workflow.add_edge("cancel_action", END)
+    workflow.add_edge("clarify_confirmation", END)
     workflow.add_edge("query_summary", END)
     workflow.add_edge("query_settlement", END)
     workflow.add_edge("query_document_expiry", END)

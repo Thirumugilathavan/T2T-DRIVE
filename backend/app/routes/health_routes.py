@@ -4,7 +4,8 @@ from app.database.connection import db_manager
 
 health_bp = Blueprint("health", __name__, url_prefix="/api/health")
 
-@health_bp.route("", methods=["GET"])
+@health_bp.route("", methods=["GET"], strict_slashes=False)
+@health_bp.route("/", methods=["GET"], strict_slashes=False)
 def health_check():
     """Basic health check verifying Flask backend application is responsive."""
     return success_response({
@@ -14,7 +15,8 @@ def health_check():
         "environment": current_app.config.get("ENV", "development")
     })
 
-@health_bp.route("/db", methods=["GET"])
+@health_bp.route("/db", methods=["GET"], strict_slashes=False)
+@health_bp.route("/db/", methods=["GET"], strict_slashes=False)
 def database_health():
     """Checks MongoDB Atlas connectivity and connection mode."""
     is_connected = db_manager.is_connected()

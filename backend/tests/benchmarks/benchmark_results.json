@@ -13,7 +13,7 @@
     "average_wer": 0.0667,
     "average_cer": 0.0485,
     "exact_match_accuracy_pct": 80.0,
-    "avg_processing_latency_ms": 36.93,
+    "avg_processing_latency_ms": 34.21,
     "pre_flight_unusable_rejections": 1,
     "confirmation_firewall_enforcements": 0
   },

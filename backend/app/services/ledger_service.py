@@ -43,11 +43,20 @@ class LedgerService:
         transaction_date: Optional[str] = None,
         source: str = "MANUAL",
         reference_id: Optional[str] = None,
-        created_by: Optional[str] = None
+        created_by: Optional[str] = None,
+        session=None
     ) -> Dict[str, Any]:
         """
         Appends a verified financial transaction to the ledger.
+        Idempotent: if a transaction with the same (driver_id, idempotency_key) already exists,
+        it returns the existing record rather than failing.
         """
+        # Idempotency lookup
+        existing = self.repo.get_by_idempotency_key(driver_id, idempotency_key, session=session)
+        if existing:
+            logger.info("Transaction with idempotency key %s already exists for driver %s. Returning existing.", idempotency_key, driver_id)
+            return self._format_transaction(existing)
+
         amt = quantize_money(amount)
         signed_amt = FinancialCalculator.calculate_signed_amount(transaction_type, amt)
         txn_id = f"TXN_{secrets.token_hex(8)}"
@@ -73,7 +82,15 @@ class LedgerService:
         )
 
         txn_dict = txn_obj.model_dump()
-        self.repo.insert_transaction(txn_dict)
+        try:
+            self.repo.insert_transaction(txn_dict, session=session)
+        except Exception as exc:
+            if "duplicate key" in str(exc).lower() or getattr(exc, "code", None) == 11000:
+                existing = self.repo.get_by_idempotency_key(driver_id, idempotency_key, session=session)
+                if existing:
+                    logger.info("Concurrent insert caught: returning existing transaction for %s", idempotency_key)
+                    return self._format_transaction(existing)
+            raise
 
         if self.audit:
             self.audit.log_event(

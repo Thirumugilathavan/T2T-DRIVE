@@ -108,3 +108,36 @@ class AudioPreprocessor:
             return math.sqrt(mean_square)
         except Exception:
             return 100.0  # Inconclusive, assume not silent
+
+    @staticmethod
+    def resample_to_16k_mono_pcm(audio_bytes: bytes) -> bytes:
+        """
+        Converts/resamples input audio bytes (WAV or OGG) to standard 16 kHz Mono 16-bit PCM WAV.
+        """
+        try:
+            import soundfile as sf
+            import numpy as np
+
+            with io.BytesIO(audio_bytes) as bio:
+                data, sr = sf.read(bio)
+
+            # If stereo / multi-channel, average down to mono
+            if data.ndim > 1:
+                data = data.mean(axis=1)
+
+            # Resample to 16000 Hz if different
+            target_sr = 16000
+            if sr != target_sr:
+                target_len = int(len(data) * target_sr / sr)
+                data = np.interp(
+                    np.linspace(0, len(data), target_len, endpoint=False),
+                    np.arange(len(data)),
+                    data
+                )
+
+            out_bio = io.BytesIO()
+            sf.write(out_bio, data, target_sr, subtype="PCM_16", format="WAV")
+            return out_bio.getvalue()
+        except Exception as e:
+            logger.warning("Resampling to 16kHz failed, passing raw bytes: %s", e)
+            return audio_bytes

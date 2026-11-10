@@ -10,6 +10,30 @@ from app.utils.decorators import require_auth
 finance_bp = Blueprint("finance", __name__, url_prefix="/api/finance")
 
 
+@finance_bp.route("/summary", methods=["GET"])
+@require_auth
+def get_summary_unified():
+    """Unified financial summary endpoint supporting period=today|weekly|monthly and date filters."""
+    summary_svc = current_app.extensions["summary_service"]
+    period = request.args.get("period", "today").lower()
+    vehicle_id = request.args.get("vehicle_id")
+    start_date = request.args.get("start_date") or request.args.get("date")
+    end_date = request.args.get("end_date")
+
+    try:
+        if period == "weekly":
+            res = summary_svc.get_weekly_summary(driver_id=g.driver_id, reference_date=start_date, vehicle_id=vehicle_id)
+        elif period == "monthly":
+            res = summary_svc.get_monthly_summary(driver_id=g.driver_id, vehicle_id=vehicle_id)
+        elif start_date and end_date and start_date != end_date:
+            res = summary_svc.get_custom_summary(driver_id=g.driver_id, start_date=start_date, end_date=end_date, vehicle_id=vehicle_id)
+        else:
+            res = summary_svc.get_daily_summary(driver_id=g.driver_id, date_str=start_date, vehicle_id=vehicle_id)
+        return success_response(res)
+    except ValueError as err:
+        return error_response(code="INVALID_DATE", message=str(err), status_code=400)
+
+
 @finance_bp.route("/summary/daily", methods=["GET"])
 @require_auth
 def get_daily_summary():

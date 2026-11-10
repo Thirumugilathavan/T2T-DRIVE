@@ -251,6 +251,7 @@ class AgentService:
             "pending_id": new_pending_id,
             "entities": entities,
             "message": result_state.get("response_message", ""),
+            "reply_text": result_state.get("response_message", ""),
             "voice_text": result_state.get("response_voice_text", ""),
             "intent": intent,
             "confidence": result_state.get("confidence", 1.0),

@@ -185,3 +185,45 @@ def test_settlement_recalculation_versioning(db):
     assert s1_history["version"] == 1
     assert s1_history["remaining_balance"] == "200.00"
     assert s1_history["settlement_status"] == "PARTIALLY_SETTLED"
+
+
+def test_vehicle_management_and_outstanding_rent(db):
+    audit = AuditService(db)
+    repo = TransactionRepository(db)
+    settle_svc = SettlementService(db=db, repo=repo, audit_service=audit)
+
+    # 1. Owner registers vehicle with weekly rent
+    veh = settle_svc.register_or_update_vehicle(
+        vehicle_id="TN-05-AUTO-9999",
+        owner_id="OWNER_CHANDRAN",
+        vehicle_type="AUTO_RICKSHAW",
+        rent_type="FIXED_RENT",
+        rent_amount=Decimal("2500.00"),
+        rent_frequency="WEEKLY",
+        assigned_driver_ids=["DRV_RAMESH"]
+    )
+    assert veh["vehicle_id"] == "TN-05-AUTO-9999"
+    assert veh["rent_amount"] == "2500.00"
+    assert veh["rent_frequency"] == "WEEKLY"
+    assert "DRV_RAMESH" in veh["assigned_driver_ids"]
+
+    # 2. Reassign driver fleet
+    updated_veh = settle_svc.reassign_vehicle_drivers(
+        vehicle_id="TN-05-AUTO-9999",
+        new_driver_ids=["DRV_KUMAR", "DRV_SURESH"],
+        owner_id="OWNER_CHANDRAN"
+    )
+    assert updated_veh["assigned_driver_ids"] == ["DRV_KUMAR", "DRV_SURESH"]
+
+    # 3. Unauthorized user cannot reassign vehicle
+    with pytest.raises(PermissionError):
+        settle_svc.reassign_vehicle_drivers(
+            vehicle_id="TN-05-AUTO-9999",
+            new_driver_ids=["DRV_HACKER"],
+            owner_id="OWNER_STRANGER"
+        )
+
+    # 4. Query outstanding rent before any settlement
+    out_init = settle_svc.get_outstanding_rent("DRV_KUMAR", "TN-05-AUTO-9999")
+    assert out_init["outstanding_balance"] == "0.00"
+    assert out_init["settlement_status"] == "NONE"

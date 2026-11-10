@@ -76,6 +76,11 @@ class VoiceTurnResponse(BaseModel):
     tts_status: str = "SKIPPED"  # SUCCESS, ERROR, SKIPPED
     error: Optional[str] = None
 
+    # Compatibility Aliases & Extracted Entities
+    reply_text: Optional[str] = None
+    pending_id: Optional[str] = None
+    entities: Optional[Dict[str, Any]] = None
+
     # Phase 6 Noise Intelligence Enrichments
     audio_quality: Optional[str] = None
     noise_classification: Optional[Dict[str, Any]] = None

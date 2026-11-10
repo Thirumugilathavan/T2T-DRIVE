@@ -235,6 +235,7 @@ class TripReconciliationService:
             "agreed_fare": agreed_val,
             "total_amount_paid": paid_val,
             "total_paid": paid_val,
+            "paid_amount": paid_val,
             "outstanding_amount": format_money(trip.outstanding_amount),
             "payment_status": trip.payment_status.value,
             "payment_method": trip.payment_method.value if trip.payment_method else None,

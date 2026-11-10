@@ -13,8 +13,8 @@ from app.voice.schemas import (
 )
 from app.voice.audio_validator import AudioValidator, AudioValidationError
 from app.voice.audio_preprocessor import AudioPreprocessor
-from app.voice.prisma_adapter import PrismaAdapterBase, PrismaAdapter, MockPrismaAdapter
-from app.voice.timbre_adapter import TimbreAdapterBase, TimbreAdapter, MockTimbreAdapter
+from app.voice.prisma_adapter import PrismaAdapterBase, PrismaAdapter, MockPrismaAdapter, DisabledPrismaAdapter
+from app.voice.timbre_adapter import TimbreAdapterBase, TimbreAdapter, MockTimbreAdapter, DisabledTimbreAdapter
 from app.voice.voice_service import VoiceService
 
 __all__ = [
@@ -29,8 +29,10 @@ __all__ = [
     "PrismaAdapterBase",
     "PrismaAdapter",
     "MockPrismaAdapter",
+    "DisabledPrismaAdapter",
     "TimbreAdapterBase",
     "TimbreAdapter",
     "MockTimbreAdapter",
+    "DisabledTimbreAdapter",
     "VoiceService"
 ]

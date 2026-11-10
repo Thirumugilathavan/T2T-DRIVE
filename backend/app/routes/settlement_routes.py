@@ -198,3 +198,114 @@ def propose_recalculation(settlement_id):
         return success_response(result, status_code=201)
     except Exception as err:
         return error_response(code="PROPOSAL_FAILED", message=str(err), status_code=400)
+
+
+# ============================================================================
+# OWNER-DRIVER VEHICLE MANAGEMENT & OUTSTANDING RENT
+# ============================================================================
+
+@settlement_bp.route("/vehicles", methods=["POST"])
+@require_auth
+def register_or_update_vehicle():
+    """
+    Registers or updates vehicle rental configuration and driver assignment.
+    """
+    body = request.get_json(silent=True) or {}
+    vehicle_id = body.get("vehicle_id") or body.get("registration_number")
+    if not vehicle_id:
+        return error_response(code="INVALID_REQUEST", message="vehicle_id is required.", status_code=400)
+
+    owner_id = body.get("owner_id") or g.driver_id
+    vehicle_type = body.get("vehicle_type", "AUTO_RICKSHAW")
+    registration_number = body.get("registration_number", vehicle_id)
+    rent_type = body.get("rent_type", "FIXED_RENT")
+    rent_amount_raw = body.get("rent_amount", "350.00")
+    rent_frequency = body.get("rent_frequency", "DAILY").upper()
+    assigned_driver_ids = body.get("assigned_driver_ids", [])
+
+    try:
+        rent_amount = Decimal(str(rent_amount_raw))
+    except Exception:
+        return error_response(code="INVALID_RENT", message="Invalid rent_amount format.", status_code=400)
+
+    settle_svc = current_app.extensions["settlement_service"]
+    try:
+        vehicle = settle_svc.register_or_update_vehicle(
+            vehicle_id=vehicle_id,
+            owner_id=owner_id,
+            vehicle_type=vehicle_type,
+            registration_number=registration_number,
+            rent_type=rent_type,
+            rent_amount=rent_amount,
+            rent_frequency=rent_frequency,
+            assigned_driver_ids=assigned_driver_ids,
+            actor_id=g.driver_id
+        )
+        return success_response({"vehicle": vehicle}, status_code=201)
+    except PermissionError as pe:
+        return error_response(code="UNAUTHORIZED", message=str(pe), status_code=403)
+    except Exception as err:
+        return error_response(code="VEHICLE_REGISTRATION_FAILED", message=str(err), status_code=400)
+
+
+@settlement_bp.route("/vehicles", methods=["GET"])
+@require_auth
+def list_vehicles():
+    """
+    Lists vehicles accessible to the authenticated driver or owner.
+    """
+    settle_svc = current_app.extensions["settlement_service"]
+    vehicles = settle_svc.list_vehicles(owner_id=g.driver_id, driver_id=g.driver_id)
+    return success_response({"vehicles": vehicles, "total": len(vehicles)})
+
+
+@settlement_bp.route("/vehicles/<vehicle_id>", methods=["GET"])
+@require_auth
+def get_vehicle(vehicle_id):
+    """
+    Retrieves vehicle configuration and rental terms.
+    """
+    settle_svc = current_app.extensions["settlement_service"]
+    vehicle = settle_svc.get_vehicle(vehicle_id, actor_id=g.driver_id)
+    if not vehicle:
+        return error_response(code="VEHICLE_NOT_FOUND", message=f"Vehicle '{vehicle_id}' not found.", status_code=404)
+    return success_response({"vehicle": vehicle})
+
+
+@settlement_bp.route("/vehicles/<vehicle_id>/assign", methods=["POST"])
+@require_auth
+def assign_vehicle_driver(vehicle_id):
+    """
+    Assigns or links a driver to an existing vehicle.
+    """
+    body = request.get_json(silent=True) or {}
+    driver_id = body.get("driver_id")
+    if not driver_id:
+        return error_response(code="INVALID_REQUEST", message="driver_id is required.", status_code=400)
+
+    settle_svc = current_app.extensions["settlement_service"]
+    try:
+        vehicle = settle_svc.assign_driver_to_vehicle(
+            vehicle_id=vehicle_id,
+            driver_id=driver_id,
+            owner_id=g.driver_id
+        )
+        return success_response({"vehicle": vehicle})
+    except PermissionError as pe:
+        return error_response(code="UNAUTHORIZED", message=str(pe), status_code=403)
+    except ValueError as ve:
+        return error_response(code="VEHICLE_NOT_FOUND", message=str(ve), status_code=404)
+    except Exception as err:
+        return error_response(code="ASSIGNMENT_FAILED", message=str(err), status_code=400)
+
+
+@settlement_bp.route("/outstanding", methods=["GET"])
+@require_auth
+def get_outstanding_rent():
+    """
+    Queries driver's current carried-forward outstanding rent and latest settlement.
+    """
+    settle_svc = current_app.extensions["settlement_service"]
+    vehicle_id = request.args.get("vehicle_id")
+    outstanding = settle_svc.get_outstanding_rent(driver_id=g.driver_id, vehicle_id=vehicle_id)
+    return success_response(outstanding)

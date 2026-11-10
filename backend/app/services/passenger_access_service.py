@@ -69,7 +69,17 @@ class PassengerAccessService:
 
         self.repo.store_passenger_access(access_doc)
 
-        passenger_url = f"{self.base_url}/passenger.html?trip_id={trip_id}&token={raw_token}"
+        # Resolve effective base URL: request context host if available, else configured base_url
+        effective_base = self.base_url
+        try:
+            from flask import has_request_context, request
+            if has_request_context() and request and request.host_url:
+                if "localhost" in effective_base or "127.0.0.1" in effective_base:
+                    effective_base = request.host_url.rstrip("/")
+        except Exception:
+            pass
+
+        passenger_url = f"{effective_base}/passenger.html?trip_id={trip_id}&token={raw_token}"
         qr_svg = self._generate_qr_svg(passenger_url)
 
         return raw_token, passenger_url, qr_svg

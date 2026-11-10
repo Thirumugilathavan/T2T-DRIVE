@@ -1,3 +1,4 @@
+import os
 import logging
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
@@ -17,6 +18,24 @@ class DatabaseManager:
         db_name = app.config.get("DB_NAME", "t2t_drive")
         testing = app.config.get("TESTING", False)
 
+        # 1. Dedicated Isolated Real Test Database (if explicitly configured)
+        test_live_uri = app.config.get("TEST_LIVE_MONGODB_URI") or os.getenv("TEST_LIVE_MONGODB_URI")
+        if testing and test_live_uri and not uri.startswith("mongomock://"):
+            parsed_test_db = app.config.get("DB_NAME", "t2t_drive_test")
+            if parsed_test_db.lower() in ("t2t_drive", "production", "prod", "live"):
+                parsed_test_db = "t2t_drive_integration_test"
+            try:
+                self.client = MongoClient(test_live_uri, serverSelectionTimeoutMS=3000)
+                self.client.admin.command("ping")
+                self.db = self.client[parsed_test_db]
+                self._is_mock = False
+                logger.info("Connected to dedicated test live MongoDB database: %s", parsed_test_db)
+                return
+            except Exception as err:
+                logger.error("Failed to connect to TEST_LIVE_MONGODB_URI: %s", err)
+                raise ConnectionError(f"Failed to connect to TEST_LIVE_MONGODB_URI: {err}")
+
+        # 2. In-Memory Mock Testing (Default for testing when no TEST_LIVE_MONGODB_URI is provided)
         if testing or uri.startswith("mongomock://"):
             try:
                 import mongomock

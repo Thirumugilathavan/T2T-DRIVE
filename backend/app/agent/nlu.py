@@ -19,10 +19,12 @@ class AgentIntent:
     RECORD_EXPENSE = "RECORD_EXPENSE"
     RECORD_INCOME = "RECORD_INCOME"
     RECORD_OWNER_PAYMENT = "RECORD_OWNER_PAYMENT"
+    RECORD_BATCH_TRANSACTIONS = "RECORD_BATCH_TRANSACTIONS"
     GET_SUMMARY = "GET_SUMMARY"
     CALCULATE_SETTLEMENT = "CALCULATE_SETTLEMENT"
     CONFIRM_ACTION = "CONFIRM_ACTION"
     CANCEL_ACTION = "CANCEL_ACTION"
+    CLARIFY_CONFIRMATION = "CLARIFY_CONFIRMATION"
     HELP = "HELP"
     UNKNOWN = "UNKNOWN"
 
@@ -227,9 +229,9 @@ NEGATIVE_TERMS = [
 ]
 
 SUMMARY_TERMS = [
-    "summary", "total", "today", "balance", "earnings", "collection",
+    "summary", "total", "today", "balance", "earnings",
     "inniku kanaku", "inniku balance", "evvalavu sambadhichen", "kanaku sollu", "collection enna",
-    "இன்றைய கணக்கு", "கணக்கு", "இருப்பு", "வருமானம் எவ்வளவு", "இன்றைய நிலை"
+    "collection evvalavu", "today collection", "இன்றைய கணக்கு", "கணக்கு", "இருப்பு", "வருமானம் எவ்வளவு", "இன்றைய நிலை"
 ]
 
 SETTLEMENT_TERMS = [
@@ -281,6 +283,96 @@ class MultilingualNLU:
     """
 
     @classmethod
+    def extract_multi_transactions(cls, text: str) -> List[Dict[str, Any]]:
+        """
+        Extracts multiple financial transactions from a single compound utterance.
+        e.g. 'இன்னிக்கு collection 1500, petrol 300, owner-க்கு 200 கொடுத்தேன்.'
+        """
+        all_entry_kws = []
+        for c, kws in EXPENSE_CATEGORY_KEYWORDS.items():
+            all_entry_kws.extend(kws)
+        for c, kws in INCOME_CATEGORY_KEYWORDS.items():
+            all_entry_kws.extend(kws)
+        all_entry_kws.extend(OWNER_PAYMENT_KEYWORDS)
+        all_entry_kws = sorted(set(all_entry_kws), key=lambda x: len(x), reverse=True)
+
+        # 1. Delimiter-based splitting (commas, semicolons, conjunctions)
+        delimiters = r"[,;]|\band\b|\bapram\b|\bappuram\b|\bpinbu\b|\bmatrum\b"
+        raw_segments = [p.strip() for p in re.split(delimiters, text, flags=re.IGNORECASE) if p.strip()]
+
+        # 2. If single segment but multiple numbers exist, split by keyword boundaries
+        amounts_in_text = re.findall(r"\b\d+(?:\.\d{1,2})?\b", text)
+        if len(raw_segments) <= 1 and len(amounts_in_text) > 1:
+            kw_pattern = r"(\b(?:" + "|".join(re.escape(k) for k in all_entry_kws) + r")\b)"
+            tokens = re.split(kw_pattern, text, flags=re.IGNORECASE)
+            segments = []
+            current = ""
+            for tok in tokens:
+                if not tok.strip():
+                    continue
+                lower_tok = tok.strip().lower()
+                if any(lower_tok == k for k in all_entry_kws):
+                    if current and any(char.isdigit() for char in current):
+                        segments.append(current.strip())
+                        current = tok
+                    else:
+                        current += " " + tok
+                else:
+                    current += " " + tok
+            if current.strip():
+                segments.append(current.strip())
+            raw_segments = segments
+
+        transactions = []
+        for s in raw_segments:
+            amt = parse_numeric_amount(s)
+            if not amt:
+                continue
+            lower_s = s.lower()
+
+            # 1. Owner payment check
+            if any(k in lower_s for k in OWNER_PAYMENT_KEYWORDS):
+                transactions.append({
+                    "action_type": "ADD_OWNER_PAYMENT",
+                    "category": "OWNER_RENT",
+                    "amount": float(amt),
+                    "description": f"Owner payment ₹{amt}"
+                })
+                continue
+
+            # 2. Expense check
+            exp_cat = None
+            for c, kws in EXPENSE_CATEGORY_KEYWORDS.items():
+                if any(k in lower_s for k in kws):
+                    exp_cat = c
+                    break
+            if exp_cat or any(v in lower_s for v in ["potten", "spent", "kuduthen", "selavu", "போட்டேன்", "செலவு"]):
+                transactions.append({
+                    "action_type": "ADD_EXPENSE",
+                    "category": exp_cat or "OTHER_EXPENSE",
+                    "amount": float(amt),
+                    "description": f"{exp_cat or 'Expense'} ₹{amt}"
+                })
+                continue
+
+            # 3. Income check
+            inc_cat = None
+            for c, kws in INCOME_CATEGORY_KEYWORDS.items():
+                if any(k in lower_s for k in kws):
+                    inc_cat = c
+                    break
+            if inc_cat or any(v in lower_s for v in ["vandhuchu", "varumanam", "earned", "got", "collection", "sambathithen", "sambathichen", "வந்தது"]):
+                transactions.append({
+                    "action_type": "ADD_INCOME",
+                    "category": inc_cat or "FARE",
+                    "amount": float(amt),
+                    "description": f"Collection ₹{amt}"
+                })
+                continue
+
+        return transactions
+
+    @classmethod
     def parse(cls, text: str, has_active_pending_action: bool = False, default_vehicle: str = "DEFAULT_VEHICLE") -> Dict[str, Any]:
         """
         Analyzes driver message, extracts intent, slots, and missing slots.
@@ -292,17 +384,28 @@ class MultilingualNLU:
         effective_write_vehicle = explicit_vehicle or default_vehicle or "DEFAULT_VEHICLE"
         vehicle_id = effective_write_vehicle
         
-        # 1. Check for Confirmation / Cancellation first if there is a pending action awaiting confirmation
+        # 1. Check for Confirmation / Cancellation / Clarification / Partial confirmation first
         if has_active_pending_action:
-            for term in AFFIRMATIVE_TERMS:
-                if term in lower:
-                    return {
-                        "intent": AgentIntent.CONFIRM_ACTION,
-                        "confidence": 0.98,
-                        "language": language,
-                        "slots": {},
-                        "missing_slots": []
-                    }
+            # Check for partial confirmation: "only petrol", "petrol mattum", "only collection", "save only 300", etc.
+            is_partial = any(w in lower for w in ["only", "mattum", "மட்டும்", "just"])
+            filter_cat = None
+            if any(w in lower for w in ["petrol", "diesel", "fuel", "பெட்ரோல்", "டீசல்"]):
+                filter_cat = "FUEL"
+            elif any(w in lower for w in ["collection", "fare", "savari", "கலெக்ஷன்", "சவாரி"]):
+                filter_cat = "FARE"
+            elif any(w in lower for w in ["owner", "vaadagai", "ஓனர்", "வாடகை"]):
+                filter_cat = "OWNER_RENT"
+
+            if filter_cat and (is_partial or any(w in lower for w in ["confirm", "save", "record", "சரி", "பண்ணு"])):
+                return {
+                    "intent": AgentIntent.CONFIRM_ACTION,
+                    "confidence": 0.98,
+                    "language": language,
+                    "slots": {"filter_category": filter_cat},
+                    "missing_slots": []
+                }
+
+            # Check negative terms BEFORE affirmative terms so "cancel pannu" or "vendaam" are not misclassified as "pannu"
             for term in NEGATIVE_TERMS:
                 if term in lower:
                     return {
@@ -312,6 +415,29 @@ class MultilingualNLU:
                         "slots": {},
                         "missing_slots": []
                     }
+            for term in AFFIRMATIVE_TERMS:
+                if term in lower:
+                    return {
+                        "intent": AgentIntent.CONFIRM_ACTION,
+                        "confidence": 0.98,
+                        "language": language,
+                        "slots": {},
+                        "missing_slots": []
+                    }
+
+            # Ambiguous response while awaiting confirmation -> request clarification
+            ambiguous_terms = [
+                "maybe", "what", "repeat", "purila", "therila", "wait", "huh",
+                "can you repeat", "doubt", "dont know", "not sure", "yosikanum"
+            ]
+            if any(term in lower for term in ambiguous_terms):
+                return {
+                    "intent": AgentIntent.CLARIFY_CONFIRMATION,
+                    "confidence": 0.95,
+                    "language": language,
+                    "slots": {},
+                    "missing_slots": []
+                }
 
         # 2. Help Intent
         if any(term in lower for term in HELP_TERMS):
@@ -320,6 +446,21 @@ class MultilingualNLU:
                 "confidence": 0.95,
                 "language": language,
                 "slots": {},
+                "missing_slots": []
+            }
+
+        # 3. Check for multi-transaction compound utterances (e.g. collection 1500, petrol 300, owner 200)
+        multi_txns = cls.extract_multi_transactions(clean_text)
+        if len(multi_txns) >= 2:
+            return {
+                "intent": AgentIntent.RECORD_BATCH_TRANSACTIONS,
+                "confidence": 0.96,
+                "language": language,
+                "slots": {
+                    "transactions": multi_txns,
+                    "vehicle_id": vehicle_id,
+                    "notes": clean_text
+                },
                 "missing_slots": []
             }
 
@@ -434,7 +575,7 @@ class MultilingualNLU:
         expense_verbs = ["potten", "potan", "selavu", "spent", "kuduthen", "kattinen", "போட்டேன்", "செலவு", "கட்டினேன்"]
         income_verbs = [
             "vandhuchu", "varumanam", "earned", "got", "collection", "sambadhichen",
-            "sambathithen", "sambathichen", "kedaichathu", "kidaithathu", "சம்பாதித்தேன்", "வந்தது"
+            "sambathithen", "sambathichen", "kedaichathu", "kidaithathu", "சம்பாதித்தேன்", "சம்பாதிச்சேன்", "வந்தது"
         ]
         
         is_expense_verb = any(v in lower for v in expense_verbs)

@@ -124,7 +124,8 @@ class PendingActionService:
         self,
         pending_action_id: str,
         driver_id: str,
-        idempotency_key: str
+        idempotency_key: str,
+        filter_category: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Atomically confirms and executes a pending action with crash-recovery.
@@ -161,7 +162,8 @@ class PendingActionService:
             if action.get("execution_result"):
                 return action["execution_result"]
             # Fallback: check if ledger record exists
-            existing_res = self._find_existing_execution_result(pending_action_id, driver_id, action.get("action_type"))
+            exp_count = self._calculate_expected_count(action, filter_category)
+            existing_res = self._find_existing_execution_result(pending_action_id, driver_id, action.get("action_type"), expected_count=exp_count)
             if existing_res:
                 return existing_res
             raise PendingActionAlreadyConsumedError("Pending action has already been consumed.")
@@ -185,7 +187,8 @@ class PendingActionService:
         # 6. CRASH RECOVERY: Handle action already in CONFIRMED state
         if status == PendingActionStatus.CONFIRMED.value:
             # Check if underlying write was already committed to database before the crash
-            existing_res = self._find_existing_execution_result(pending_action_id, driver_id, action.get("action_type"))
+            exp_count = self._calculate_expected_count(action, filter_category)
+            existing_res = self._find_existing_execution_result(pending_action_id, driver_id, action.get("action_type"), expected_count=exp_count)
             if existing_res:
                 logger.info("Crash recovery: Found committed ledger entry for confirmed action %s. Marking CONSUMED.", pending_action_id)
                 self.db.pending_actions.update_one(
@@ -193,7 +196,7 @@ class PendingActionService:
                     {"$set": {"status": PendingActionStatus.CONSUMED.value, "consumed_at": now, "execution_result": existing_res}}
                 )
                 return existing_res
-            # If not yet written, proceed to execute below using the confirmed lock
+            # If not yet written or partially written, proceed to execute below using the confirmed lock
 
         elif status in (PendingActionStatus.PENDING.value, PendingActionStatus.FAILED_RETRYABLE.value):
             # Atomic state transition: PENDING/FAILED_RETRYABLE -> CONFIRMED
@@ -231,6 +234,26 @@ class PendingActionService:
         exec_key = f"EXEC_{pending_action_id}"
         execution_result: Dict[str, Any] = {}
 
+        # Check if database supports multi-document ACID transactions
+        client = getattr(self.db, "client", None)
+        session = None
+        in_txn = False
+        if client and hasattr(client, "start_session"):
+            try:
+                session = client.start_session()
+                session.start_transaction()
+                in_txn = True
+            except Exception:
+                # Standalone MongoDB or mongomock does not support sessions/transactions.
+                # Fall back to durable idempotent state machine.
+                if session:
+                    try:
+                        session.end_session()
+                    except Exception:
+                        pass
+                session = None
+                in_txn = False
+
         try:
             if action_type in (
                 PendingActionType.ADD_INCOME.value,
@@ -251,7 +274,8 @@ class PendingActionService:
                     description=data.get("description", ""),
                     idempotency_key=exec_key,
                     transaction_date=data.get("transaction_date", today_ist()),
-                    source=data.get("source", "MANUAL")
+                    source=data.get("source", "MANUAL"),
+                    session=session
                 )
 
                 # Link maintenance record if this is a maintenance expense
@@ -267,6 +291,49 @@ class PendingActionService:
                             )
                         except Exception as m_err:
                             logger.error("Failed to link maintenance record to transaction: %s", m_err)
+
+            elif action_type == PendingActionType.ADD_BATCH_TRANSACTIONS.value:
+                txns = data.get("transactions", [])
+                executed_txns = []
+                target_filter = filter_category or data.get("filter_category")
+                tt_map = {
+                    "INCOME": TransactionType.INCOME,
+                    "EXPENSE": TransactionType.EXPENSE,
+                    "OWNER_PAYMENT": TransactionType.OWNER_PAYMENT,
+                    PendingActionType.ADD_INCOME.value: TransactionType.INCOME,
+                    PendingActionType.ADD_EXPENSE.value: TransactionType.EXPENSE,
+                    PendingActionType.ADD_OWNER_PAYMENT.value: TransactionType.OWNER_PAYMENT,
+                }
+                for idx, t in enumerate(txns):
+                    t_cat = t.get("category", "OTHER_EXPENSE")
+                    if target_filter and t_cat.upper() != target_filter.upper():
+                        continue
+                    t_type_raw = t.get("action_type") or t.get("transaction_type") or "EXPENSE"
+                    t_type = tt_map.get(t_type_raw, TransactionType.EXPENSE)
+                    item_key = f"{exec_key}_{idx}_{t_cat}"
+                    v_id = t.get("vehicle_id") or data.get("vehicle_id", "DEFAULT_VEHICLE")
+                    t_date = t.get("transaction_date") or data.get("transaction_date", today_ist())
+                    res = self.ledger.record_transaction(
+                        driver_id=driver_id,
+                        vehicle_id=v_id,
+                        transaction_type=t_type,
+                        amount=Decimal(str(t["amount"])),
+                        category=t_cat,
+                        description=t.get("description", data.get("description", "")),
+                        idempotency_key=item_key,
+                        transaction_date=t_date,
+                        source=data.get("source", "VOICE_AGENT"),
+                        session=session
+                    )
+                    executed_txns.append(res)
+                execution_result = {
+                    "status": "CONFIRMED",
+                    "batch": True,
+                    "count": len(executed_txns),
+                    "is_partial": bool(target_filter),
+                    "filter_category": target_filter,
+                    "transactions": executed_txns
+                }
 
             elif action_type == PendingActionType.CREATE_REVERSAL.value:
                 execution_result = self.ledger.create_reversal(
@@ -311,6 +378,7 @@ class PendingActionService:
                 raise ValueError(f"Unknown pending action type: {action_type}")
 
             # 8. Mark CONSUMED with execution result
+            update_kw = {"session": session} if (session and in_txn) else {}
             self.db.pending_actions.update_one(
                 {"_id": action["_id"]},
                 {
@@ -319,8 +387,12 @@ class PendingActionService:
                         "consumed_at": now_utc(),
                         "execution_result": execution_result
                     }
-                }
+                },
+                **update_kw
             )
+
+            if session and in_txn:
+                session.commit_transaction()
 
             if self.audit:
                 self.audit.log_event(
@@ -336,8 +408,14 @@ class PendingActionService:
 
         except Exception as err:
             logger.error("Execution failed during confirmation of %s: %s", pending_action_id, err)
+            if session and in_txn:
+                try:
+                    session.abort_transaction()
+                except Exception:
+                    pass
             # Check if transaction was actually committed despite the exception (e.g. post-write network drop)
-            existing_res = self._find_existing_execution_result(pending_action_id, driver_id, action_type)
+            exp_count = self._calculate_expected_count(action, filter_category)
+            existing_res = self._find_existing_execution_result(pending_action_id, driver_id, action_type, expected_count=exp_count)
             if existing_res:
                 self.db.pending_actions.update_one(
                     {"_id": action["_id"]},
@@ -357,6 +435,12 @@ class PendingActionService:
                 }
             )
             raise
+        finally:
+            if session:
+                try:
+                    session.end_session()
+                except Exception:
+                    pass
 
     def cancel_action(self, pending_action_id: str, driver_id: str, reason: str = "Driver cancelled") -> Dict[str, Any]:
         """Cancels an unconfirmed pending action."""
@@ -404,7 +488,8 @@ class PendingActionService:
         self,
         pending_action_id: str,
         driver_id: str,
-        action_type: str
+        action_type: str,
+        expected_count: Optional[int] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Inspects the ledger or settlements to detect whether a financial write
@@ -440,7 +525,41 @@ class PendingActionService:
                 from app.services.settlement_service import SettlementService
                 return SettlementService._format_settlement(from_mongo_doc(settle))
 
+        # 3. Batch transactions check
+        if action_type == PendingActionType.ADD_BATCH_TRANSACTIONS.value:
+            existing_batch = list(self.db.transactions.find({
+                "driver_id": driver_id,
+                "idempotency_key": {"$regex": f"^{exec_key}_"}
+            }))
+            if existing_batch:
+                if expected_count is not None and len(existing_batch) < expected_count:
+                    logger.warning(
+                        "Partial batch execution detected for %s: found %d of %d expected transactions.",
+                        pending_action_id, len(existing_batch), expected_count
+                    )
+                    return None
+                from app.services.ledger_service import LedgerService
+                formatted = [LedgerService._format_transaction(from_mongo_doc(t)) for t in existing_batch]
+                return {
+                    "status": "CONFIRMED",
+                    "batch": True,
+                    "count": len(formatted),
+                    "transactions": formatted
+                }
+
         return None
+
+    @staticmethod
+    def _calculate_expected_count(action: Dict[str, Any], filter_category: Optional[str] = None) -> Optional[int]:
+        """Calculates expected count of transactions for batch execution comparison."""
+        if action.get("action_type") != PendingActionType.ADD_BATCH_TRANSACTIONS.value:
+            return None
+        data = action.get("proposed_data", {})
+        txns = data.get("transactions", [])
+        target_filter = filter_category or data.get("filter_category")
+        if target_filter:
+            return len([t for t in txns if t.get("category", "").upper() == target_filter.upper()])
+        return len(txns)
 
     @staticmethod
     def _generate_summary(action_type: PendingActionType, data: Dict[str, Any]) -> str:
@@ -451,6 +570,13 @@ class PendingActionService:
             return f"Confirm recording expense of ₹{data.get('amount')} ({data.get('category')}) for vehicle {data.get('vehicle_id')}?"
         elif action_type == PendingActionType.ADD_OWNER_PAYMENT:
             return f"Confirm recording owner payment of ₹{data.get('amount')} for vehicle {data.get('vehicle_id')}?"
+        elif action_type == PendingActionType.ADD_BATCH_TRANSACTIONS:
+            txns = data.get("transactions", [])
+            parts = []
+            for t in txns:
+                cat = t.get("category", "").replace("_", " ").title()
+                parts.append(f"₹{t.get('amount')} ({cat})")
+            return f"Confirm recording {', '.join(parts)} for vehicle {data.get('vehicle_id')}?"
         elif action_type == PendingActionType.CREATE_ADJUSTMENT:
             return f"Confirm adjusting transaction {data.get('original_transaction_id')} to ₹{data.get('new_amount')}? Reason: {data.get('reason')}"
         elif action_type == PendingActionType.CREATE_REVERSAL:
