@@ -7,10 +7,10 @@ and Phase 5 Document Management, Challan Assistance, and Vehicle Maintenance.
 
 import os
 import logging
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from app.config import get_config, config_by_name
-from app.database.connection import db_manager
+from app.database.connection import db_manager, DisconnectedDatabase, DatabaseUnavailableError
 from app.database.indexes import ensure_indexes
 from app.services.auth_service import AuthService
 from app.services.audit_service import AuditService
@@ -70,11 +70,39 @@ def create_app(config_name=None, db=None):
     )
     logger.info("Configured CORS for origins: %s", allowed_origins)
 
+    # 2.5 Database availability gate for API requests (returns HTTP 503 when disconnected)
+    @app.before_request
+    def check_database_availability():
+        exempt_prefixes = (
+            "/api/health",
+            "/api/voice/capabilities",
+            "/api/voice/speak",
+        )
+        if not request.path.startswith("/api/"):
+            return None  # Frontend static assets & HTML delivery are always served
+        if any(request.path.startswith(prefix) for prefix in exempt_prefixes):
+            return None  # Capabilities & health always available
+        if not db_manager.is_connected():
+            return error_response(
+                code="DATABASE_UNAVAILABLE",
+                message="Database service is unavailable. Please configure MONGODB_URI in Render dashboard to connect to MongoDB Atlas.",
+                status_code=503
+            )
+        return None
+
+    @app.errorhandler(DatabaseUnavailableError)
+    def handle_database_unavailable(err):
+        return error_response(
+            code="DATABASE_UNAVAILABLE",
+            message=str(err),
+            status_code=503
+        )
+
     # 3. Initialize Database Manager & Ensure Indexes
     if db is None:
         db_manager.init_app(app)
         db = db_manager.get_db()
-        if db is not None:
+        if db is not None and not isinstance(db, DisconnectedDatabase):
             ensure_indexes(db)
 
     # 4. Initialize Core Foundation & Financial Services

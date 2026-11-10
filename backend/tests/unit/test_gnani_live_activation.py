@@ -165,3 +165,49 @@ def test_render_environment_and_mongo_aliases(monkeypatch):
     ).strip().strip("\"'")
     assert _raw.startswith("mongodb+srv://")
 
+
+def test_disconnected_database_startup_and_503_responses(monkeypatch):
+    """Verifies that app starts safely without AttributeError when MongoDB is disconnected on Render,
+    and returns HTTP 503 for database-dependent requests while keeping health & frontend accessible."""
+    from app import create_app
+    from app.config import Config
+    from app.database.connection import db_manager
+
+    class DisconnectedRenderConfig(Config):
+        TESTING = False
+        ENV = "production"
+        SECRET_KEY = "dummy-long-secret-key-32-chars-long!"
+        MONGODB_URI = "mongodb://localhost:27017/t2t_drive"
+        VOICE_PROVIDER_MODE = "mock"
+
+    monkeypatch.setenv("RENDER", "true")
+    # Reset db_manager state
+    db_manager.db = None
+    db_manager._is_mock = False
+
+    # 1. Startup must NOT crash with AttributeError ('vehicle_documents', etc.)
+    app = create_app(DisconnectedRenderConfig)
+    client = app.test_client()
+
+    # 2. Health endpoint must succeed (200 OK) reporting database disconnected
+    health_res = client.get("/api/health")
+    assert health_res.status_code == 200
+    health_data = health_res.get_json()["data"]
+    assert health_data["database"]["connected"] is False
+    assert health_data["database"]["mode"] == "DISCONNECTED"
+
+    # 3. Voice capabilities must succeed (200 OK)
+    cap_res = client.get("/api/voice/capabilities")
+    assert cap_res.status_code == 200
+
+    # 4. Frontend homepage must succeed (200 OK)
+    home_res = client.get("/")
+    assert home_res.status_code == 200
+
+    # 5. Database-dependent API request must return HTTP 503 DATABASE_UNAVAILABLE
+    db_res = client.get("/api/documents/")
+    assert db_res.status_code == 503
+    err_json = db_res.get_json()
+    assert err_json["error"]["code"] == "DATABASE_UNAVAILABLE"
+    assert "unavailable" in err_json["error"]["message"].lower()
+

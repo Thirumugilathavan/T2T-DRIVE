@@ -5,6 +5,38 @@ from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
 logger = logging.getLogger(__name__)
 
+
+class DatabaseUnavailableError(Exception):
+    """Raised when a database operation is attempted while MongoDB is disconnected."""
+    pass
+
+
+class DisconnectedCollection:
+    """Null object for a MongoDB collection when the database is unavailable."""
+    def __init__(self, name: str):
+        self.name = name
+
+    def __getattr__(self, method: str):
+        def _fail(*args, **kwargs):
+            raise DatabaseUnavailableError(
+                f"Database is currently unavailable: cannot execute '{method}' on collection '{self.name}'. "
+                "Please configure MONGODB_URI in Render dashboard."
+            )
+        return _fail
+
+    def __getitem__(self, name: str):
+        return self
+
+
+class DisconnectedDatabase:
+    """Null object for MongoDB database when disconnected. Prevents startup AttributeError."""
+    def __getattr__(self, name: str):
+        return DisconnectedCollection(name)
+
+    def __getitem__(self, name: str):
+        return DisconnectedCollection(name)
+
+
 class DatabaseManager:
     """Manages the MongoDB Atlas connection with fallback and health checks."""
 
@@ -55,7 +87,7 @@ class DatabaseManager:
                 "Set MONGODB_URI or MONGO_URI in Render dashboard. Mock database fallback is disabled.",
                 uri
             )
-            self.db = None
+            self.db = DisconnectedDatabase()
             self._is_mock = False
             return
 
@@ -69,7 +101,7 @@ class DatabaseManager:
             logger.info("Successfully connected to MongoDB Atlas database: %s", db_name)
         except (ConnectionFailure, ServerSelectionTimeoutError) as err:
             if is_render:
-                self.db = None
+                self.db = DisconnectedDatabase()
                 self._is_mock = False
                 logger.error(
                     "MongoDB connection failed on Render: %s. "
@@ -79,8 +111,6 @@ class DatabaseManager:
                 return
 
             logger.warning("Could not connect to live MongoDB (%s). Falling back to mock database for development.", err)
-
-            logger.warning("Could not connect to live MongoDB (%s). Falling back to mock database for development.", err)
             try:
                 import mongomock
                 self.client = mongomock.MongoClient()
@@ -88,15 +118,16 @@ class DatabaseManager:
                 self._is_mock = True
                 logger.info("[MOCK] Fallback: initialized mongomock database.")
             except ImportError:
-                # If neither mongomock nor real mongo works, keep client for error reporting
-                self.db = None
+                self.db = DisconnectedDatabase()
                 logger.error("No MongoDB or mongomock available! Database operations will fail.")
 
     def get_db(self):
+        if self.db is None:
+            return DisconnectedDatabase()
         return self.db
 
     def is_connected(self):
-        if self.db is None:
+        if self.db is None or isinstance(self.db, DisconnectedDatabase):
             return False
         if self._is_mock:
             return True
