@@ -211,3 +211,35 @@ def test_disconnected_database_startup_and_503_responses(monkeypatch):
     assert err_json["error"]["code"] == "DATABASE_UNAVAILABLE"
     assert "unavailable" in err_json["error"]["message"].lower()
 
+
+def test_diagnose_mongo_error_sanitization_and_categories():
+    """Verifies that MongoDB error diagnosis accurately categorizes errors without leaking secrets."""
+    from app.database.connection import diagnose_mongo_error
+
+    secret_uri = "mongodb+srv://admin_user:super_secret_pwd_123@cluster0.abcde.mongodb.net/t2t_drive?retryWrites=true"
+
+    # 1. TLS / IP Whitelist error
+    tls_err = Exception("SSL handshake failed: TLSV1_ALERT_INTERNAL_ERROR, ReplicaSetNoPrimary")
+    diag_tls = diagnose_mongo_error(tls_err, secret_uri)
+    assert diag_tls["category"] == "TLS_OR_IP_FIREWALL_BLOCK"
+    assert "0.0.0.0/0" in diag_tls["action"]
+    assert "super_secret_pwd_123" not in diag_tls["target"]
+    assert "admin_user" not in diag_tls["target"]
+    assert diag_tls["target"] == "mongodb+srv://***:***@cluster0.abcde.mongodb.net"
+
+    # 2. Authentication failure
+    auth_err = Exception("OperationFailure: Authentication failed for user 'admin_user'")
+    diag_auth = diagnose_mongo_error(auth_err, secret_uri)
+    assert diag_auth["category"] == "AUTHENTICATION_FAILED"
+    assert "super_secret_pwd_123" not in diag_auth["target"]
+
+    # 3. DNS failure
+    dns_err = Exception("ConfigurationError: All nameservers failed to answer the query _mongodb._tcp.cluster0...")
+    diag_dns = diagnose_mongo_error(dns_err, secret_uri)
+    assert diag_dns["category"] == "DNS_RESOLUTION_FAILURE"
+
+    # 4. Timeout
+    timeout_err = Exception("ServerSelectionTimeoutError: No replica set members found within 5000ms")
+    diag_timeout = diagnose_mongo_error(timeout_err, secret_uri)
+    assert diag_timeout["category"] == "CONNECTION_TIMEOUT"
+

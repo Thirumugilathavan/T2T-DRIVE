@@ -29,7 +29,8 @@ def health_check():
         "database": {
             "connected": is_connected,
             "mode": "MOCK" if is_mock else ("LIVE_ATLAS" if is_connected else "DISCONNECTED"),
-            "name": cfg.get("DB_NAME", "t2t_drive")
+            "name": cfg.get("DB_NAME", "t2t_drive"),
+            "diagnostic": db_manager.get_last_diagnostic() if not is_connected else None
         },
         "providers": {
             "voice_mode": voice_mode,
@@ -53,8 +54,9 @@ def database_health():
 
     data = {
         "database_connected": is_connected,
-        "database_mode": "MOCK" if is_mock else "LIVE_ATLAS",
-        "database_name": current_app.config.get("DB_NAME")
+        "database_mode": "MOCK" if is_mock else ("LIVE_ATLAS" if is_connected else "DISCONNECTED"),
+        "database_name": current_app.config.get("DB_NAME"),
+        "diagnostic": db_manager.get_last_diagnostic() if not is_connected else None
     }
 
     if not is_connected:
