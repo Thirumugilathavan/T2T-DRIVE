@@ -101,8 +101,10 @@ class DatabaseManager:
         self.db = None
         self._is_mock = False
         self._last_diagnostic = None
+        self._app = None
 
     def init_app(self, app):
+        self._app = app
         uri = app.config.get("MONGODB_URI", "mongodb://localhost:27017/t2t_drive")
         db_name = app.config.get("DB_NAME", "t2t_drive")
         testing = app.config.get("TESTING", False)
@@ -205,6 +207,11 @@ class DatabaseManager:
                 logger.error("No MongoDB or mongomock available! Database operations will fail.")
 
     def get_db(self):
+        if (self.db is None or isinstance(self.db, DisconnectedDatabase)) and self._app:
+            try:
+                self.init_app(self._app)
+            except Exception:
+                pass
         if self.db is None:
             return DisconnectedDatabase()
         return self.db
@@ -213,6 +220,11 @@ class DatabaseManager:
         return self._last_diagnostic
 
     def is_connected(self):
+        if (self.db is None or isinstance(self.db, DisconnectedDatabase)) and self._app:
+            try:
+                self.init_app(self._app)
+            except Exception:
+                pass
         if self.db is None or isinstance(self.db, DisconnectedDatabase):
             return False
         if self._is_mock:
