@@ -59,10 +59,61 @@
   };
 
   /**
-   * Helper to retrieve auth headers if token exists
+   * Token Storage and Session Management
+   */
+  function getAuthToken() {
+    try {
+      return localStorage.getItem("t2t_token") || sessionStorage.getItem("t2t_token") || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function setAuthToken(token) {
+    if (!token) return;
+    try {
+      localStorage.setItem("t2t_token", token);
+    } catch (e) {}
+  }
+
+  let _tokenPromise = null;
+  async function ensureAuthToken() {
+    let token = getAuthToken();
+    if (token) return token;
+
+    if (_tokenPromise) return await _tokenPromise;
+
+    _tokenPromise = (async () => {
+      try {
+        const url = (window.T2T_CONFIG.API_BASE || "") + "/api/auth/demo-session";
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          const data = json && json.data ? json.data : json;
+          if (data && data.token) {
+            setAuthToken(data.token);
+            return data.token;
+          }
+        }
+      } catch (err) {
+        console.warn("[T2T] Auto session authentication attempt:", err);
+      } finally {
+        _tokenPromise = null;
+      }
+      return getAuthToken();
+    })();
+
+    return await _tokenPromise;
+  }
+
+  /**
+   * Helper to retrieve auth headers with Bearer token
    */
   function getAuthHeaders(customHeaders = {}) {
-    const token = localStorage.getItem("t2t_token") || sessionStorage.getItem("t2t_token");
+    const token = getAuthToken();
     const headers = { ...customHeaders };
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
@@ -71,24 +122,44 @@
   }
 
   /**
-   * Helper for robust JSON HTTP requests with timeout
+   * Helper for robust JSON HTTP requests with timeout and 401 retry
    */
-  async function fetchWithTimeout(url, options = {}) {
+  async function fetchWithTimeout(url, options = {}, retryCount = 0) {
+    if (!getAuthToken() && !url.includes("/api/auth/demo-session") && !url.includes("/api/auth/request-otp") && !url.includes("/api/auth/verify-otp")) {
+      await ensureAuthToken();
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), window.T2T_CONFIG.TIMEOUT_MS);
 
     try {
       const mergedHeaders = getAuthHeaders(options.headers || {});
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         ...options,
         headers: mergedHeaders,
         signal: controller.signal
       });
+
+      // If token expired or unauthorized, refresh session and retry at most once (infinite loop guard)
+      if (response.status === 401 && retryCount < 1 && !url.includes("/api/auth/")) {
+        clearTimeout(timer);
+        try { localStorage.removeItem("t2t_token"); } catch (e) {}
+        const freshToken = await ensureAuthToken();
+        if (freshToken) {
+          return await fetchWithTimeout(url, options, retryCount + 1);
+        }
+      }
+
       clearTimeout(timer);
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
-        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+        let msg = errorText;
+        try {
+          const j = JSON.parse(errorText);
+          if (j && j.error && j.error.message) msg = j.error.message;
+        } catch (e) {}
+        throw new Error(`HTTP ${response.status}: ${msg || response.statusText}`);
       }
       const json = await response.json();
       return (json && json.data !== undefined) ? json.data : json;
@@ -109,6 +180,10 @@
   async function transcribe(audio, lang = "tanglish") {
     if (window.T2T_CONFIG.MODE === "mock") {
       return await window.MockAPI.transcribe(audio, lang);
+    }
+
+    if (!getAuthToken()) {
+      await ensureAuthToken();
     }
 
     const formData = new FormData();
@@ -146,6 +221,10 @@
   async function voiceChat(audio, lang = "tanglish", sessionId = null, generateTts = true) {
     if (window.T2T_CONFIG.MODE === "mock") {
       return await window.MockAPI.voiceChat(audio, lang, sessionId, generateTts);
+    }
+
+    if (!getAuthToken()) {
+      await ensureAuthToken();
     }
 
     const formData = new FormData();
@@ -494,7 +573,10 @@
     remindersScan,
     reminderAcknowledge,
     settlementCompare,
-    speak
+    speak,
+    ensureAuthToken,
+    getAuthToken,
+    setAuthToken
   };
 
 })();

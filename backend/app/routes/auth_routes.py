@@ -144,3 +144,42 @@ def logout():
         "message": "Successfully logged out.",
         "session_id": g.session_id
     })
+
+
+@auth_bp.route("/demo-session", methods=["POST", "GET"])
+@auth_bp.route("/session", methods=["POST", "GET"])
+def demo_session():
+    """
+    Issues an isolated JWT access token for academic/evaluation guest demo (DRV_DEMO_GUEST).
+    Embeds is_demo=True claim and role='DEMO'.
+    Direct ledger modifications and real financial writes are strictly blocked.
+    """
+    db = current_app.extensions["db"]
+    auth_service = current_app.extensions["auth_service"]
+    driver_id = "DRV_DEMO_GUEST"
+    driver = db.drivers.find_one({"driver_id": driver_id})
+    if not driver:
+        driver = {
+            "driver_id": driver_id,
+            "name": "Demo Guest Driver",
+            "phone": "+919999900000",
+            "preferred_language": "tanglish",
+            "default_vehicle_id": "TN-01-DEMO-2026",
+            "status": "ACTIVE",
+            "is_demo": True
+        }
+        db.drivers.insert_one(driver)
+
+    token = auth_service.generate_jwt_token(driver_id, is_demo=True, role="DEMO")
+    return success_response({
+        "token": token,
+        "is_demo": True,
+        "driver": {
+            "driver_id": driver["driver_id"],
+            "name": driver.get("name", "Demo Guest Driver"),
+            "phone": driver.get("phone", "+919999900000"),
+            "preferred_language": driver.get("preferred_language", "tanglish"),
+            "default_vehicle_id": driver.get("default_vehicle_id", "TN-01-DEMO-2026"),
+            "is_demo": True
+        }
+    })

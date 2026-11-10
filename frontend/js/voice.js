@@ -267,8 +267,15 @@
       ttsAudioPlayer.load();
 
       if (ttsStatusPill) {
-        ttsStatusPill.textContent = (provider || "GNANI TIMBRE").toUpperCase();
-        ttsStatusPill.className = "pill pill-success";
+        const provStr = String(provider || "").toLowerCase();
+        const isLive = provStr.includes("gnani") && !provStr.includes("mock");
+        if (isLive) {
+          ttsStatusPill.textContent = "LIVE";
+          ttsStatusPill.className = "pill pill-live";
+        } else {
+          ttsStatusPill.textContent = "SIMULATED";
+          ttsStatusPill.className = "pill pill-mock";
+        }
       }
 
       const playPromise = ttsAudioPlayer.play();
@@ -299,8 +306,8 @@
       if (indicVoice) utterance.voice = indicVoice;
       window.speechSynthesis.speak(utterance);
       if (ttsStatusPill) {
-        ttsStatusPill.textContent = "BROWSER FALLBACK";
-        ttsStatusPill.className = "pill pill-beta";
+        ttsStatusPill.textContent = "SIMULATED";
+        ttsStatusPill.className = "pill pill-mock";
       }
     } catch (e) {
       console.warn("Browser speech fallback warning:", e);
@@ -459,18 +466,18 @@
 
       // 6. Play Gnani Timbre Synthesized Audio
       if (res.tts_audio_base64 && res.tts_status !== "ERROR") {
-        playTtsAudio(res.tts_audio_base64, res.tts_provider || "Gnani Timbre");
+        playTtsAudio(res.tts_audio_base64, res.tts_provider || "mock_timbre");
       } else if (res.tts_status === "ERROR") {
         console.warn("TTS generation failed or unavailable:", res.error);
         if (ttsStatusPill) {
-          ttsStatusPill.textContent = "TTS UNAVAILABLE";
-          ttsStatusPill.className = "pill pill-warning";
+          ttsStatusPill.textContent = "ERROR";
+          ttsStatusPill.className = "pill pill-error";
         }
         showVoiceAlert("Voice synthesis unavailable. Showing text response.", "info");
       } else {
         if (ttsStatusPill) {
-          ttsStatusPill.textContent = "READY";
-          ttsStatusPill.className = "pill pill-beta";
+          ttsStatusPill.textContent = "IDLE";
+          ttsStatusPill.className = "pill pill-idle";
         }
       }
 

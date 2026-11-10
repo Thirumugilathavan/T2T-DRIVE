@@ -93,6 +93,14 @@ class PendingActionService:
         # Generate human-readable summary based on action type
         summary = self._generate_summary(action_type, proposed_data)
 
+        is_demo = (driver_id == "DRV_DEMO_GUEST")
+        try:
+            from flask import g
+            if getattr(g, "is_demo", False):
+                is_demo = True
+        except Exception:
+            pass
+
         pending_obj = PendingAction(
             pending_action_id=pending_id,
             driver_id=driver_id,
@@ -102,7 +110,8 @@ class PendingActionService:
             human_readable_summary=summary,
             created_at=now,
             expires_at=expires_at,
-            idempotency_key=idempotency_key
+            idempotency_key=idempotency_key,
+            is_demo=is_demo
         )
 
         doc = pending_obj.model_dump()
@@ -230,6 +239,54 @@ class PendingActionService:
         # 7. Execute Underlying Financial Write
         action_type = action["action_type"]
         data = action["proposed_data"]
+
+        # Strict Production Safeguard: Block real financial ledger writes for demo sessions
+        is_demo_action = bool(action.get("is_demo", False)) or (driver_id == "DRV_DEMO_GUEST")
+        try:
+            from flask import g
+            if getattr(g, "is_demo", False):
+                is_demo_action = True
+        except Exception:
+            pass
+
+        if is_demo_action:
+            logger.info("Demo session: driver %s confirmed action %s. Simulating without ledger write.", driver_id, pending_action_id)
+            sim_txn_id = f"DEMO_TXN_{secrets.token_hex(6)}"
+            execution_result = {
+                "status": "SIMULATED",
+                "is_demo": True,
+                "driver_id": driver_id,
+                "pending_action_id": pending_action_id,
+                "action_type": action_type,
+                "message": "Demo transaction simulated successfully (ledger write blocked in demo mode)."
+            }
+            if action_type == PendingActionType.ADD_BATCH_TRANSACTIONS.value:
+                txns = data.get("transactions", [])
+                execution_result["batch"] = True
+                execution_result["count"] = len(txns)
+                execution_result["transactions"] = [
+                    {"transaction_id": f"DEMO_TXN_{secrets.token_hex(6)}", "amount": str(t.get("amount", 0)), "category": t.get("category", "")}
+                    for t in txns
+                ]
+            elif action_type in (PendingActionType.CREATE_SETTLEMENT.value, PendingActionType.RECALCULATE_SETTLEMENT.value):
+                execution_result["settlement_id"] = f"DEMO_SETTLE_{secrets.token_hex(6)}"
+            else:
+                execution_result["transaction_id"] = sim_txn_id
+                execution_result["amount"] = str(data.get("amount", "0.00"))
+                execution_result["category"] = data.get("category", "OTHER")
+
+            self.db.pending_actions.update_one(
+                {"_id": action["_id"]},
+                {
+                    "$set": {
+                        "status": PendingActionStatus.CONSUMED.value,
+                        "consumed_at": now,
+                        "execution_result": execution_result
+                    }
+                }
+            )
+            return execution_result
+
         # Use deterministic execution key tied to pending_action_id to prevent duplicate ledger records
         exec_key = f"EXEC_{pending_action_id}"
         execution_result: Dict[str, Any] = {}

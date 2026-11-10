@@ -293,4 +293,5 @@ class PendingAction(BaseModel):
     confirmed_at: Optional[datetime.datetime] = None
     consumed_at: Optional[datetime.datetime] = None
     idempotency_key: str
+    is_demo: bool = False
     execution_result: Optional[Dict[str, Any]] = None

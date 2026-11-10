@@ -56,6 +56,7 @@ class AgentNodes:
         maintenance_service=None,
         trip_service=None,
         trip_reconciliation_service=None,
+        llm_adapter=None,
         db=None
     ):
         self.pending_svc = pending_action_service
@@ -66,6 +67,7 @@ class AgentNodes:
         self.maintenance_svc = maintenance_service
         self.trip_svc = trip_service
         self.trip_reconciliation_svc = trip_reconciliation_service
+        self.llm_adapter = llm_adapter
         self.db = db
 
     def nlu_node(self, state: AgentState) -> Dict[str, Any]:

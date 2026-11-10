@@ -29,7 +29,10 @@ def require_auth(f):
             g.session_id = payload.get("session_id")
             g.jti = payload.get("jti")
             g.token_exp = payload.get("exp")
+            g.is_demo = bool(payload.get("is_demo", False))
+            g.role = payload.get("role", "DRIVER")
             request.driver_id = g.driver_id
+            request.is_demo = g.is_demo
 
             if not g.driver_id:
                 return error_response(

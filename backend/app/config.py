@@ -63,6 +63,13 @@ class Config:
     GNANI_EVON_INFERENCE_URL = os.getenv("GNANI_EVON_INFERENCE_URL", "http://localhost:8000/v1/chat/completions")
     GNANI_EVON_MODEL_NAME = os.getenv("GNANI_EVON_MODEL_NAME", "gnani-evon")
 
+    # External AI Extraction / LLM Provider Configuration
+    LLM_API_KEY = os.getenv("LLM_API_KEY", os.getenv("AI_EXTRACTION_API_KEY", os.getenv("GNANI_EVON_API_KEY", "")))
+    LLM_INFERENCE_URL = os.getenv("LLM_INFERENCE_URL", os.getenv("GNANI_EVON_INFERENCE_URL", "http://localhost:8000/v1/chat/completions"))
+    LLM_MODEL = os.getenv("LLM_MODEL", os.getenv("GNANI_EVON_MODEL_NAME", "gnani-evon"))
+    AI_EXTRACTION_MODE = os.getenv("AI_EXTRACTION_MODE", "rule_based").lower()
+    AI_EXTRACTION_ENABLED = os.getenv("AI_EXTRACTION_ENABLED", "0") == "1"
+
     # Voice Pipeline Configuration (Phase 4)
     VOICE_PROVIDER_MODE = os.getenv("VOICE_PROVIDER_MODE", "mock").lower()
     GNANI_PRISMA_ENABLED = os.getenv("GNANI_PRISMA_ENABLED", "1") == "1"

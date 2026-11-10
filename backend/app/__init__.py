@@ -176,6 +176,12 @@ def create_app(config_name=None, db=None):
 
     # 4.7 Initialize Conversational Agent (Phase 3, Phase 5 & Passenger Extension)
     from app.agent.service import AgentService
+    from app.agent.llm_adapter import LLMAdapter
+    llm_adapter = LLMAdapter(
+        api_key=app.config.get("LLM_API_KEY"),
+        inference_url=app.config.get("LLM_INFERENCE_URL"),
+        model_name=app.config.get("LLM_MODEL")
+    )
     agent_service = AgentService(
         db=db,
         pending_action_service=pending_action_service,
@@ -186,7 +192,8 @@ def create_app(config_name=None, db=None):
         challan_service=challan_service,
         maintenance_service=maintenance_service,
         trip_service=trip_service,
-        trip_reconciliation_service=trip_reconciliation_service
+        trip_reconciliation_service=trip_reconciliation_service,
+        llm_adapter=llm_adapter
     )
 
     # 4.8 Initialize Voice Integration (Phase 4)

@@ -119,6 +119,11 @@
     initTheme();
     initSystemMode();
 
+    // Auto-authenticate driver session token for Voice Co-Pilot and API access
+    if (window.API && window.API.ensureAuthToken) {
+      window.API.ensureAuthToken().catch(err => console.warn("Session token bootstrap:", err));
+    }
+
     // Welcome Toast
     setTimeout(() => {
       showToast("Vanakkam! T2T DRIVE Voice Co-Pilot is ready.", "success");
@@ -137,4 +142,3 @@
   }
 
 })();
-

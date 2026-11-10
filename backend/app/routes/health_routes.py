@@ -1,3 +1,4 @@
+import os
 from flask import Blueprint, current_app
 from app.utils.responses import success_response, error_response
 from app.database.connection import db_manager
@@ -7,13 +8,40 @@ health_bp = Blueprint("health", __name__, url_prefix="/api/health")
 @health_bp.route("", methods=["GET"], strict_slashes=False)
 @health_bp.route("/", methods=["GET"], strict_slashes=False)
 def health_check():
-    """Basic health check verifying Flask backend application is responsive."""
-    return success_response({
+    """Structured health check verifying Flask backend, database, and provider statuses."""
+    cfg = current_app.config
+    is_connected = db_manager.is_connected()
+    is_mock = db_manager.is_mock()
+
+    environment = "production" if (os.getenv("RENDER") or cfg.get("ENV") == "production") else cfg.get("ENV", "development")
+
+    voice_mode = cfg.get("VOICE_PROVIDER_MODE", "mock")
+    prisma_live = bool(cfg.get("GNANI_API_KEY") and cfg.get("GNANI_PRISMA_ENABLED"))
+    timbre_live = bool(cfg.get("GNANI_API_KEY") and cfg.get("GNANI_TIMBRE_ENABLED"))
+    llm_configured = bool(cfg.get("LLM_API_KEY"))
+
+    data = {
         "status": "UP",
         "service": "T2T DRIVE Backend",
         "version": "1.0.0-phase1",
-        "environment": current_app.config.get("ENV", "development")
-    })
+        "environment": environment,
+        "database": {
+            "connected": is_connected,
+            "mode": "MOCK" if is_mock else "LIVE_ATLAS",
+            "name": cfg.get("DB_NAME", "t2t_drive")
+        },
+        "providers": {
+            "voice_mode": voice_mode,
+            "gnani_prisma": "LIVE" if prisma_live else "MOCK",
+            "gnani_timbre": "LIVE" if timbre_live else "MOCK",
+            "llm_adapter": {
+                "mode": cfg.get("AI_EXTRACTION_MODE", "rule_based"),
+                "configured": llm_configured,
+                "model": cfg.get("LLM_MODEL", "gnani-evon")
+            }
+        }
+    }
+    return success_response(data)
 
 @health_bp.route("/db", methods=["GET"], strict_slashes=False)
 @health_bp.route("/db/", methods=["GET"], strict_slashes=False)

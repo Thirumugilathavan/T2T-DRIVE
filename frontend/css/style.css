@@ -572,10 +572,10 @@ html[data-theme="light"] .theme-btn .dark-icon { display: none; }
   letter-spacing: 0.04em;
 }
 
-.pill-live { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-.pill-mock { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
-.pill-beta { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
-.pill-planned { background: rgba(156, 163, 175, 0.2); color: #9ca3af; }
+.pill-live, .pill-success { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+.pill-mock, .pill-beta { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+.pill-error, .pill-danger { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+.pill-idle, .pill-secondary, .pill-planned { background: rgba(156, 163, 175, 0.2); color: #9ca3af; }
 
 /* Buttons & Inputs */
 .btn-primary {

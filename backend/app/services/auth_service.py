@@ -248,7 +248,13 @@ class AuthService:
         token = self.generate_jwt_token(driver["driver_id"])
         return {"success": True, "token": token, "driver": driver}
 
-    def generate_jwt_token(self, driver_id: str, session_id: Optional[str] = None) -> str:
+    def generate_jwt_token(
+        self,
+        driver_id: str,
+        session_id: Optional[str] = None,
+        is_demo: bool = False,
+        role: str = "DRIVER"
+    ) -> str:
         """
         Issues a signed JWT access token embedding verified identity claims and a unique JTI token ID.
         """
@@ -264,7 +270,9 @@ class AuthService:
             "session_id": session_id,
             "jti": jti,
             "iat": int(now.timestamp()),
-            "exp": int(exp.timestamp())
+            "exp": int(exp.timestamp()),
+            "is_demo": bool(is_demo),
+            "role": str(role)
         }
 
         secret = self.config.get("JWT_SECRET", "dev-jwt-secret")
