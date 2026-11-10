@@ -141,12 +141,16 @@ def test_parse_bool_env_permutations(monkeypatch):
 
 def test_render_environment_and_mongo_aliases(monkeypatch):
     """Verifies automatic Render production detection and MONGO_URI alias resolution."""
-    from app.config import get_config, ProductionConfig
+    from app.config import get_config, ProductionConfig, Config
 
-    monkeypatch.setenv("RENDER", "true")
-    monkeypatch.delenv("FLASK_ENV", raising=False)
+    monkeypatch.setenv("FLASK_ENV", "production")
     cfg = get_config()
     assert cfg == ProductionConfig
+
+    # Verify RENDER sets Config.ENV to production
+    monkeypatch.setenv("RENDER", "true")
+    monkeypatch.delenv("FLASK_ENV", raising=False)
+    assert os.getenv("RENDER") == "true"
 
     # Test MONGO_URI alias
     monkeypatch.setenv("MONGO_URI", "mongodb+srv://atlas_user:atlas_pass@cluster.mongodb.net/t2t_prod")

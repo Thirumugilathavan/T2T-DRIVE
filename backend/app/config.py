@@ -194,11 +194,5 @@ config_by_name = {
 
 
 def get_config():
-    env = os.getenv("FLASK_ENV")
-    if not env:
-        # Detect Render or cloud production environment
-        if os.getenv("RENDER") or os.getenv("RENDER_SERVICE_ID"):
-            env = "production"
-        else:
-            env = "development"
-    return config_by_name.get(env.lower(), DevelopmentConfig)
+    env = os.getenv("FLASK_ENV", "development").lower()
+    return config_by_name.get(env, DevelopmentConfig)

@@ -47,18 +47,17 @@ class DatabaseManager:
             except ImportError:
                 logger.warning("mongomock not installed, attempting standard MongoClient for testing.")
 
-        # Enforce Production Database Requirement: Disallow localhost fallback in production
-        is_prod = app.config.get("ENV", "development").lower() == "production" or bool(os.getenv("RENDER"))
-        if is_prod and not testing and ("localhost" in uri or "127.0.0.1" in uri):
-            logger.critical(
-                "FATAL: Production environment detected, but MongoDB URI points to localhost (%s). "
-                "Configure MONGODB_URI or MONGO_URI with your MongoDB Atlas connection string in Render.",
+        # Enforce Production Database Requirement: Disallow silent mock fallback on Render
+        is_render = bool(os.getenv("RENDER")) or app.config.get("ENV", "development").lower() == "production"
+        if is_render and not testing and ("localhost" in uri or "127.0.0.1" in uri):
+            logger.warning(
+                "MONGODB NOTICE: URI points to localhost on Render (%s). Live Atlas connection is not configured. "
+                "Set MONGODB_URI or MONGO_URI in Render dashboard. Mock database fallback is disabled.",
                 uri
             )
-            raise ConnectionError(
-                "Production environment requires a valid MongoDB Atlas connection string (MONGODB_URI or MONGO_URI). "
-                "Localhost database connection is strictly prohibited in production."
-            )
+            self.db = None
+            self._is_mock = False
+            return
 
         try:
             # Set a 3-second server selection timeout to avoid hanging if DB is unreachable
@@ -69,16 +68,17 @@ class DatabaseManager:
             self._is_mock = False
             logger.info("Successfully connected to MongoDB Atlas database: %s", db_name)
         except (ConnectionFailure, ServerSelectionTimeoutError) as err:
-            env = app.config.get("ENV", "development").lower()
-            if is_prod:
+            if is_render:
                 self.db = None
                 self._is_mock = False
-                logger.critical(
-                    "FATAL: Failed to connect to MongoDB Atlas in PRODUCTION environment: %s. "
-                    "Automatic mock fallback is strictly disabled in production.",
+                logger.error(
+                    "MongoDB connection failed on Render: %s. "
+                    "Mock database fallback is disabled on Render. Atlas database is disconnected.",
                     err
                 )
-                raise ConnectionError(f"Production database connection failed: {err}")
+                return
+
+            logger.warning("Could not connect to live MongoDB (%s). Falling back to mock database for development.", err)
 
             logger.warning("Could not connect to live MongoDB (%s). Falling back to mock database for development.", err)
             try:

@@ -28,7 +28,7 @@ def health_check():
         "environment": environment,
         "database": {
             "connected": is_connected,
-            "mode": "MOCK" if is_mock else "LIVE_ATLAS",
+            "mode": "MOCK" if is_mock else ("LIVE_ATLAS" if is_connected else "DISCONNECTED"),
             "name": cfg.get("DB_NAME", "t2t_drive")
         },
         "providers": {
