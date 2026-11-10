@@ -95,6 +95,16 @@ class PrismaAdapter(PrismaAdapterBase):
         if itn_native_numerals is not None:
             data["itn_native_numerals"] = "true" if itn_native_numerals else "false"
 
+        # Ensure audio has a valid RIFF/WAVE header; auto-convert via FFmpeg if non-WAV container is passed
+        if not (len(audio_bytes) >= 12 and audio_bytes.startswith(b"RIFF") and audio_bytes[8:12] == b"WAVE"):
+            from app.voice.audio_preprocessor import AudioPreprocessor
+            try:
+                audio_bytes = AudioPreprocessor.convert_to_16k_mono_wav(audio_bytes)
+                filename = "audio.wav"
+                mime_type = "audio/wav"
+            except Exception as conv_err:
+                logger.warning("Defense-in-depth audio conversion to WAV failed in PrismaAdapter: %s", conv_err)
+
         files = {
             "audio_file": (filename, audio_bytes, mime_type)
         }

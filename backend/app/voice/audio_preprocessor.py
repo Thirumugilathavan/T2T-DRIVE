@@ -5,10 +5,14 @@ detects silent recordings, and safely prepares audio for Prisma STT.
 """
 
 import io
+import os
 import math
 import wave
 import struct
+import shutil
 import logging
+import tempfile
+import subprocess
 from typing import Optional, Dict, Any, Tuple
 
 logger = logging.getLogger("t2t_drive.audio_preprocessor")
@@ -116,11 +120,98 @@ class AudioPreprocessor:
         except Exception:
             return 100.0  # Inconclusive, assume not silent
 
-    @staticmethod
-    def resample_to_16k_mono_pcm(audio_bytes: bytes) -> bytes:
+    @classmethod
+    def get_ffmpeg_executable(cls) -> Optional[str]:
+        """Locates FFmpeg executable via PATH, imageio-ffmpeg bundled binary, or environment variable."""
+        exe = shutil.which("ffmpeg")
+        if exe:
+            return exe
+        try:
+            import imageio_ffmpeg
+            return imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            pass
+        env_exe = os.getenv("FFMPEG_PATH")
+        if env_exe and os.path.exists(env_exe):
+            return env_exe
+        return None
+
+    @classmethod
+    def convert_to_16k_mono_wav(
+        cls,
+        audio_bytes: bytes,
+        input_format: Optional[str] = None
+    ) -> bytes:
+        """
+        Converts audio bytes of any format (WebM, Opus, MP3, OGG, WAV, M4A, AAC)
+        server-side using FFmpeg into genuine 16 kHz Mono 16-bit PCM WAV:
+        `-ac 1 -ar 16000 -c:a pcm_s16le`.
+        Verifies that the converted file has a valid RIFF/WAVE header before returning.
+        """
+        if not audio_bytes or len(audio_bytes) == 0:
+            raise ValueError("Audio data is empty (0 bytes).")
+
+        ffmpeg_exe = cls.get_ffmpeg_executable()
+        if not ffmpeg_exe:
+            logger.warning("FFmpeg executable not available; falling back to soundfile resampler.")
+            return cls.resample_to_16k_mono_pcm(audio_bytes)
+
+        suffix = f".{input_format.lower()}" if input_format else ".audio"
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as in_file:
+            in_file.write(audio_bytes)
+            in_path = in_file.name
+
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as out_file:
+            out_path = out_file.name
+
+        try:
+            cmd = [
+                ffmpeg_exe,
+                "-y",
+                "-v", "error",
+                "-i", in_path,
+                "-ac", "1",
+                "-ar", "16000",
+                "-c:a", "pcm_s16le",
+                "-f", "wav",
+                out_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if result.returncode != 0:
+                err_msg = (result.stderr or "").strip()
+                logger.error("FFmpeg audio conversion failed (code %d): %s", result.returncode, err_msg)
+                raise ValueError(f"FFmpeg audio conversion failed: {err_msg or 'unsupported or corrupted audio'}")
+
+            with open(out_path, "rb") as f:
+                converted_bytes = f.read()
+
+            # Verify genuine RIFF/WAVE header
+            if len(converted_bytes) < 44 or not (converted_bytes.startswith(b"RIFF") and converted_bytes[8:12] == b"WAVE"):
+                raise ValueError("Converted audio output lacks a valid RIFF/WAVE header.")
+
+            return converted_bytes
+
+        finally:
+            for p in (in_path, out_path):
+                try:
+                    if os.path.exists(p):
+                        os.unlink(p)
+                except Exception as e:
+                    logger.debug("Failed to cleanup temp audio file %s: %s", p, e)
+
+    @classmethod
+    def resample_to_16k_mono_pcm(cls, audio_bytes: bytes) -> bytes:
         """
         Converts/resamples input audio bytes (WAV or OGG) to standard 16 kHz Mono 16-bit PCM WAV.
         """
+        # Try FFmpeg first if available
+        ffmpeg_exe = cls.get_ffmpeg_executable()
+        if ffmpeg_exe:
+            try:
+                return cls.convert_to_16k_mono_wav(audio_bytes, input_format="wav")
+            except Exception as e:
+                logger.debug("FFmpeg resample fallback to soundfile: %s", e)
+
         try:
             import soundfile as sf
             import numpy as np

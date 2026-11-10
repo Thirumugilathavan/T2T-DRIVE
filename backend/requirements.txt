@@ -29,6 +29,7 @@ langchain-core>=1.7.0,<2.0.0
 
 # Noise & Quality Metrics (for Phase 6)
 jiwer>=3.0.4,<3.1.0
+imageio-ffmpeg>=0.4.9
 
 # Testing & Property-Based Fuzzing
 pytest>=8.2.0,<8.3.0

@@ -123,9 +123,22 @@ def analyze_audio():
             status_code=400
         )
 
+    # Convert non-WAV formats (WebM, MP3, OGG, M4A) to genuine 16kHz mono WAV for full acoustic analysis
+    if val_res.format != "wav":
+        try:
+            audio_bytes = voice_svc.preprocessor.convert_to_16k_mono_wav(
+                audio_bytes,
+                input_format=val_res.format
+            )
+            analysis_format = "wav"
+        except Exception:
+            analysis_format = val_res.format
+    else:
+        analysis_format = "wav"
+
     report = voice_svc.noise_service.analyze_audio(
         audio_bytes=audio_bytes,
-        audio_format=val_res.format,
+        audio_format=analysis_format,
         language=lang
     )
 

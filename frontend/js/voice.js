@@ -157,15 +157,36 @@
       analyser.fftSize = 256;
       source.connect(analyser);
 
-      // Setup MediaRecorder
-      mediaRecorder = new MediaRecorder(stream);
+      // Setup MediaRecorder with real MIME type detection
+      const preferredMime = (window.MediaRecorder && MediaRecorder.isTypeSupported("audio/webm;codecs=opus"))
+        ? "audio/webm;codecs=opus"
+        : ((window.MediaRecorder && MediaRecorder.isTypeSupported("audio/webm")) ? "audio/webm" : "");
+      mediaRecorder = preferredMime ? new MediaRecorder(stream, { mimeType: preferredMime }) : new MediaRecorder(stream);
+
+      const actualMimeType = mediaRecorder.mimeType || preferredMime || "audio/webm";
+      console.log(`[Dashboard Recording] MediaRecorder initialized with MIME type: ${actualMimeType}`);
+
       mediaRecorder.ondataavailable = (e) => {
         if (e.data && e.data.size > 0) audioChunks.push(e.data);
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+        // Preserve the real recording MIME type. Do not blindly rename WebM to WAV.
+        const resolvedMime = mediaRecorder.mimeType || actualMimeType || "audio/webm";
+        const audioBlob = new Blob(audioChunks, { type: resolvedMime });
         stream.getTracks().forEach(track => track.stop());
+
+        // Log actual Blob MIME type and file signature (never log audio contents)
+        try {
+          const headerSlice = audioBlob.slice(0, 4);
+          const arrayBuf = await headerSlice.arrayBuffer();
+          const uint8 = new Uint8Array(arrayBuf);
+          const hexSig = Array.from(uint8).map(b => b.toString(16).padStart(2, "0")).join(" ");
+          console.log(`[Dashboard Recording] Captured audio: MIME=${audioBlob.type}, size=${audioBlob.size} bytes, signature=[${hexSig}]`);
+        } catch (sigErr) {
+          console.log(`[Dashboard Recording] Captured audio: MIME=${audioBlob.type}, size=${audioBlob.size} bytes`);
+        }
+
         await processAudioInput(audioBlob);
       };
 

@@ -7,6 +7,7 @@ Phase 6: Enriched with advanced noise intelligence, SNR estimation, VAD,
 adaptive filtering, and multi-dimensional speech confidence.
 """
 
+import os
 import logging
 from typing import Optional, Dict, Any, Tuple
 
@@ -71,10 +72,26 @@ class VoiceService:
                 error=val_result.error
             )
 
-        # 2. Basic Preprocessing & Inspection
+        # 2. Server-Side Audio Normalization via FFmpeg: -ac 1 -ar 16000 -c:a pcm_s16le
+        # Converts WebM/Opus, MP3, OGG, or any WAV variant into genuine 16kHz Mono 16-bit PCM WAV
+        try:
+            wav_bytes = self.preprocessor.convert_to_16k_mono_wav(
+                audio_bytes,
+                input_format=val_result.format
+            )
+        except Exception as conv_err:
+            logger.error("Audio conversion to 16kHz mono WAV failed: %s", conv_err)
+            return STTResponse(
+                transcript="",
+                provider="preprocessor",
+                processing_status="ERROR",
+                error=f"Audio format conversion failed: {str(conv_err)}"
+            )
+
+        # 3. Basic Preprocessing & Inspection on genuine WAV
         prep_result = self.preprocessor.inspect_and_preprocess(
-            audio_bytes,
-            audio_format=val_result.format
+            wav_bytes,
+            audio_format="wav"
         )
 
         if not prep_result["is_processable"]:
@@ -87,14 +104,14 @@ class VoiceService:
                 error=prep_result["error"]
             )
 
-        # 3. Phase 6 Noise Intelligence & Adaptive Preprocessing
+        # 4. Phase 6 Noise Intelligence & Adaptive Preprocessing
         optimal_bytes, analysis_report, prep_result_noise = self.noise_service.prepare_for_stt(
-            audio_bytes=prep_result["audio_bytes"],
-            audio_format=val_result.format,
+            audio_bytes=wav_bytes,
+            audio_format="wav",
             language=language_hint
         )
 
-        # 4. If noise intelligence determines audio is unusable (e.g. pure silence)
+        # 5. If noise intelligence determines audio is unusable (e.g. pure silence)
         if not analysis_report.should_proceed_to_stt:
             logger.info("Noise pre-flight rejected audio: %s", analysis_report.rejection_reason)
             return STTResponse(
@@ -109,12 +126,23 @@ class VoiceService:
                 analysis_report=analysis_report.to_dict()
             )
 
-        # 5. Call Prisma STT Adapter with optimal audio bytes
+        # 6. Verify RIFF/WAVE header integrity before sending to Gnani Prisma STT
+        if len(optimal_bytes) < 44 or not (optimal_bytes.startswith(b"RIFF") and optimal_bytes[8:12] == b"WAVE"):
+            logger.error("Audio buffer does not contain a valid RIFF/WAVE header.")
+            return STTResponse(
+                transcript="",
+                provider="preprocessor",
+                processing_status="ERROR",
+                error="Audio conversion error: missing valid RIFF/WAVE header."
+            )
+
+        # 7. Call Prisma STT Adapter with genuine WAV audio bytes
+        out_filename = filename if filename.lower().endswith(".wav") else f"{os.path.splitext(filename)[0]}.wav"
         stt_response = self.prisma.transcribe(
             audio_bytes=optimal_bytes,
-            filename=filename,
+            filename=out_filename,
             language_hint=language_hint,
-            mime_type=val_result.mime_type
+            mime_type="audio/wav"
         )
         stt_response.duration_seconds = prep_result["duration_seconds"]
         stt_response.audio_quality = analysis_report.overall_quality

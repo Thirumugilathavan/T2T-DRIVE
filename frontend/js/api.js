@@ -177,6 +177,20 @@
    * @param {Blob|File} audio
    * @param {string} lang ("tanglish" | "ta" | "en")
    */
+  /**
+   * Helper to resolve genuine audio filename preserving container MIME extension
+   */
+  function resolveAudioFilename(audio) {
+    if (audio && audio.name) return audio.name;
+    const type = (audio && audio.type) ? String(audio.type).toLowerCase() : "";
+    if (type.includes("webm")) return "recording.webm";
+    if (type.includes("ogg")) return "recording.ogg";
+    if (type.includes("mp4") || type.includes("m4a") || type.includes("aac")) return "recording.m4a";
+    if (type.includes("mp3") || type.includes("mpeg")) return "recording.mp3";
+    if (type.includes("wav")) return "recording.wav";
+    return "recording.webm";
+  }
+
   async function transcribe(audio, lang = "tanglish") {
     if (window.T2T_CONFIG.MODE === "mock") {
       return await window.MockAPI.transcribe(audio, lang);
@@ -188,7 +202,7 @@
 
     const formData = new FormData();
     if (audio) {
-      const audioName = (audio && audio.name) ? audio.name : "audio-input.wav";
+      const audioName = resolveAudioFilename(audio);
       formData.append("audio", audio, audioName);
     }
     formData.append("lang", lang);
@@ -229,7 +243,7 @@
 
     const formData = new FormData();
     if (audio) {
-      const audioName = (audio && audio.name) ? audio.name : "audio-input.wav";
+      const audioName = resolveAudioFilename(audio);
       formData.append("audio", audio, audioName);
     }
     formData.append("lang", lang);
